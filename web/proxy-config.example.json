@@ -1,0 +1,5 @@
+{
+  "proxy": "https://art.example.com",
+  "token": "replace-with-the-value-of-PROXY_TOKEN",
+  "operator": ""
+}

@@ -1,0 +1,41 @@
+# TrueNAS Scale — Apps > Discover Apps > Custom App > Install via YAML.
+#
+# Two gotchas that cost real time, both specific to the TrueNAS YAML importer:
+#
+#   1. Every volumes entry must be a plain "host:container" string. The
+#      long-form mapping syntax (type:/source:/target:) is silently dropped,
+#      and you get a container with no mounts and no error explaining why.
+#
+#   2. Create the host directories yourself first and chown them to 568:568
+#      (the apps user) before deploying. A container that cannot write its
+#      data directory will either crash-loop or hang during startup.
+#
+# Replace /mnt/POOL/... with your own dataset paths throughout.
+
+services:
+  artproxy:
+    image: python:3.12-slim
+    container_name: artproxy
+    restart: unless-stopped
+    user: "568:568"
+    command:
+      - sh
+      - -c
+      - "pip install --no-cache-dir --quiet --target /tmp/pylibs Pillow && PYTHONPATH=/tmp/pylibs exec python -u /app/artproxy.py"
+    environment:
+      PORT: "8778"
+      CACHE_DIR: /cache
+      ORDERS_DIR: /orders
+      CONCURRENCY: "4"
+      THUMB_CONCURRENCY: "12"
+      CACHE_MAX_MB: "4096"
+      # Set these to your own generated values.
+      PROXY_TOKEN: replace-me
+      ADMIN_TOKEN: replace-me
+      # WEBHOOK_URL: https://discord.com/api/webhooks/...
+    volumes:
+      - /mnt/POOL/configs/artproxy/artproxy.py:/app/artproxy.py:ro
+      - /mnt/POOL/configs/artproxy/cache:/cache
+      - /mnt/POOL/configs/artproxy/orders:/orders
+    ports:
+      - "8778:8778"

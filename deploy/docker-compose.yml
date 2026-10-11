@@ -1,0 +1,45 @@
+# Run the art proxy and serve the builder page. Adjust the host paths.
+#
+#   cp artproxy.env.example artproxy.env   # then fill it in
+#   docker compose up -d
+#
+# The builder page is static, so any web server will do — the nginx container
+# here is the least-moving-parts option. If you already run a reverse proxy
+# (Caddy, nginx, Nginx Proxy Manager, Traefik), point it at ./web instead and
+# drop the web service.
+
+services:
+  artproxy:
+    image: python:3.12-slim
+    container_name: artproxy
+    restart: unless-stopped
+    env_file: ./artproxy.env
+    # Pillow is installed at start so the image needs no build step. If you
+    # would rather bake it in, use the Dockerfile in this directory.
+    command: >
+      sh -c "pip install --no-cache-dir --quiet Pillow &&
+             exec python -u /app/artproxy.py"
+    volumes:
+      - ../server/artproxy.py:/app/artproxy.py:ro
+      - ./data/cache:/cache
+      - ./data/orders:/orders
+    ports:
+      - "8778:8778"
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8778/health',timeout=5).status==200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  web:
+    image: nginx:alpine
+    container_name: proxy-sheet-builder
+    restart: unless-stopped
+    volumes:
+      - ../web:/usr/share/nginx/html:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      - artproxy

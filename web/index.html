@@ -1,0 +1,2937 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proxy sheet builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --bg:#12161C; --panel:#1A2029; --sunk:#131820; --line:#2A3441;
+  --text:#E6EAEF; --dim:#8D9AA8; --accent:#2BA6B8; --accent2:#1D8C9C;
+  --warn:#E0644F; --good:#4CAF7D;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font-family:Archivo,system-ui,sans-serif;font-size:14px;
+     display:flex;flex-direction:column;overflow:hidden}
+button{font:inherit;cursor:pointer;color:inherit}
+input,select,textarea{font:inherit;color:var(--text)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:5px}
+
+/* ---------- top ---------- */
+.top{display:flex;align-items:center;gap:1rem;padding:.6rem .95rem;flex:none;
+     background:linear-gradient(180deg,#1E2630,#171D25);
+     border-bottom:1px solid #000;box-shadow:0 1px 0 rgba(255,255,255,.04) inset,0 2px 8px rgba(0,0,0,.35)}
+.top h1{font-size:1.02rem;margin:0;font-weight:700;letter-spacing:.02em}
+.top h1::before{content:"";display:inline-block;width:.5rem;height:1.05em;margin-right:.55rem;
+  vertical-align:-.18em;border-radius:2px;background:linear-gradient(180deg,var(--accent),#17707E)}
+.top .sub{color:var(--dim);font-size:.82rem}
+.top .right{margin-left:auto;display:flex;gap:.45rem;align-items:center}
+.btn{background:linear-gradient(180deg,#232B36,#1B222B);border:1px solid var(--line);
+  padding:.42rem .75rem;border-radius:6px;white-space:nowrap;
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset;transition:border-color .12s,transform .06s}
+.btn:hover{border-color:var(--accent)}
+.btn:active{transform:translateY(1px)}
+.btn.go{background:linear-gradient(180deg,#34B9CC,#1E93A4);border-color:#1B8998;color:#04212A;
+  font-weight:700;box-shadow:0 1px 0 rgba(255,255,255,.25) inset,0 1px 6px rgba(43,166,184,.3)}
+.btn.go:hover{background:linear-gradient(180deg,#3FC8DB,#238FA0)}
+@media (prefers-reduced-motion:reduce){.btn{transition:none}.btn:active{transform:none}}
+.btn.sm{padding:.22rem .45rem;font-size:.82rem;border-radius:4px}
+
+/* ---------- three panes ---------- */
+.shell{flex:1;display:grid;grid-template-columns:21rem 1fr 19rem;min-height:0}
+.pane{background:var(--panel);overflow:auto;display:flex;flex-direction:column}
+.pane.left{border-right:1px solid var(--line)}
+.pane.right{border-left:1px solid var(--line)}
+.stage{position:relative;overflow:auto;display:flex;flex-direction:column;align-items:center;
+       justify-content:flex-start;padding:1.1rem;gap:.7rem;min-height:0;
+       background:radial-gradient(ellipse at 50% 0%,#1A222C 0%,var(--bg) 62%)}
+
+.sec{border-bottom:1px solid var(--line)}
+.sec > h2{margin:0;padding:.5rem .75rem;font-size:.74rem;font-weight:700;letter-spacing:.09em;
+          text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:.45rem;
+          background:linear-gradient(180deg,#171D25,#131820);border-bottom:1px solid #0D1218}
+.sec > h2 .n{margin-left:auto;font-weight:400}
+.sec .body{padding:.65rem .75rem}
+
+label.f{display:flex;flex-direction:column;gap:.2rem;font-size:.78rem;color:var(--dim)}
+label.f input,label.f select{background:var(--sunk);border:1px solid var(--line);border-radius:4px;padding:.35rem .45rem}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem}
+.chk{display:flex;align-items:center;gap:.45rem;font-size:.85rem}
+.units{display:inline-flex;border:1px solid var(--line);border-radius:5px;overflow:hidden;margin-left:auto}
+.units button{background:var(--sunk);border:0;padding:.15rem .5rem;font-size:.78rem;color:var(--dim)}
+.units button.on{background:var(--accent);color:#06222A;font-weight:600}
+
+textarea{width:100%;min-height:7rem;background:var(--sunk);border:1px solid var(--line);border-radius:4px;
+         padding:.45rem;font-size:.85rem;resize:vertical}
+.searchrow{display:flex;gap:.4rem;position:relative}
+.searchrow input{flex:1;background:var(--sunk);border:1px solid var(--line);border-radius:4px;padding:.4rem .5rem}
+.suggest{position:absolute;top:100%;left:0;right:0;background:var(--panel);border:1px solid var(--line);
+         z-index:50;max-height:14rem;overflow:auto;display:none;border-radius:0 0 5px 5px}
+.suggest button{display:block;width:100%;text-align:left;background:transparent;border:0;padding:.3rem .5rem;font-size:.85rem}
+.suggest button:hover,.suggest button.on{background:var(--sunk)}
+
+.hits{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:.4rem;margin-top:.6rem;
+      max-height:17rem;overflow:auto}
+.hit{position:relative;border-radius:5px;overflow:hidden;background:var(--sunk);border:0;padding:0;
+  line-height:0;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.hit img{width:100%;display:block}
+.hit:hover::after{content:"+";position:absolute;inset:0;background:rgba(43,166,184,.75);color:#06222A;
+                  font-size:1.6rem;font-weight:700;display:grid;place-items:center;line-height:1}
+
+.deck{list-style:none;margin:0;padding:0;flex:1;overflow:auto}
+.deck li{display:flex;gap:.5rem;align-items:center;padding:.3rem .5rem;
+  border-bottom:1px solid var(--line);border-left:2px solid transparent;transition:border-color .12s}
+.deck li:hover{background:var(--sunk);border-left-color:var(--accent)}
+@media (prefers-reduced-motion:reduce){.deck li{transition:none}}
+.th{width:2rem;height:2.8rem;object-fit:cover;border-radius:3px;background:var(--sunk);flex:none;
+  cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.5);transition:transform .1s}
+.th:hover{transform:scale(1.08)}
+@media (prefers-reduced-motion:reduce){.th{transition:none}.th:hover{transform:none}}
+.mt{flex:1;min-width:0}
+.mt .nm{font-size:.84rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mt .st{font-size:.72rem;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.q{display:flex;align-items:center;gap:.15rem;flex:none}
+.q button{width:1.25rem;height:1.25rem;background:var(--sunk);border:1px solid var(--line);border-radius:3px;line-height:1;padding:0}
+.q span{min-width:1rem;text-align:center;font-variant-numeric:tabular-nums;font-size:.84rem}
+.x{background:transparent;border:0;color:var(--dim);padding:0 .1rem;font-size:1rem;line-height:1}
+.x:hover{color:var(--warn)}
+.empty{padding:1.2rem .75rem;color:var(--dim);font-size:.85rem}
+
+/* ---------- sheet preview ---------- */
+.sheetwrap{position:relative;background:#fff;border-radius:2px;
+  box-shadow:0 10px 34px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.07)}
+.sheetwrap .slot{position:absolute;background:#0b0e12 center/cover no-repeat;border:0;padding:0;cursor:pointer}
+.sheetwrap .slot::after{content:"Change art";position:absolute;inset:auto 0 0 0;background:rgba(43,166,184,.9);
+  color:#06222A;font-size:.7rem;font-weight:600;padding:.15rem;text-align:center;opacity:0;transition:opacity .12s}
+.sheetwrap .slot:hover::after,.sheetwrap .slot:focus-visible::after{opacity:1}
+@media (prefers-reduced-motion:reduce){.sheetwrap .slot::after{transition:none}}
+.sheetwrap .mk{position:absolute;background:#000}
+.sheetwrap .gd{position:absolute;pointer-events:none;z-index:5}
+.sheetwrap .ghost{position:absolute;border:1px dashed #C9CFD6;background:#F4F6F8}
+.pager{display:flex;align-items:center;gap:.6rem;color:var(--dim);font-size:.85rem}
+.stagenote{position:absolute;left:1rem;bottom:.7rem;margin:0;max-width:26rem;
+  font-size:.74rem;line-height:1.35;color:var(--dim);text-align:left;pointer-events:none}
+.stagenote.bad{color:var(--warn)}
+
+/* ---------- dialogs ---------- */
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:0;
+       max-width:96vw;width:96vw}
+dialog::backdrop{background:rgba(6,10,14,.78)}
+.dh{display:flex;align-items:center;padding:.6rem .8rem;border-bottom:1px solid var(--line)}
+.dh h3{margin:0;font-size:.95rem}
+.dh .note{margin-left:1rem;font-size:.78rem;color:var(--dim)}
+.dh .applyall{display:inline-flex;align-items:center;gap:.45rem;margin-left:1.1rem;
+  padding:.3rem .65rem;border:1px solid var(--accent);border-radius:5px;
+  font-size:.85rem;font-weight:600;color:var(--accent);cursor:pointer;white-space:nowrap}
+.dh .applyall:hover{background:rgba(43,166,184,.12)}
+.dh .applyall input{accent-color:var(--accent);width:1rem;height:1rem;margin:0}
+.dh .applyall.on{background:var(--accent);color:#06222A;border-color:var(--accent)}
+.dh .tabs{display:inline-flex;margin-left:1rem;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.dh .tabs button{background:var(--sunk);border:0;padding:.25rem .7rem;font-size:.82rem;color:var(--dim)}
+.dh .tabs button.on{background:var(--accent);color:#06222A;font-weight:600}
+.dh .close{background:transparent;border:0;color:var(--dim);font-size:1.2rem;line-height:1}
+.db{padding:.9rem;max-height:86vh;overflow:auto}
+.df{padding:.6rem .8rem;border-top:1px solid var(--line);display:flex;gap:.5rem;justify-content:flex-end}
+.prints{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1rem}
+.prints button{background:transparent;border:2px solid transparent;border-radius:6px;overflow:hidden;padding:0;text-align:left}
+.prints button:hover{border-color:var(--line)}
+.prints button.cur{border-color:var(--accent)}
+.prints img{width:100%;height:auto;display:block;aspect-ratio:250/349;background:var(--sunk)}
+.prints .lb{font-size:.78rem;color:var(--text);padding:.3rem .35rem .1rem;line-height:1.3}
+.prints .sub{font-size:.72rem;color:var(--dim);padding:0 .35rem .35rem;display:flex;gap:.4rem;align-items:center}
+.prints .sentinel{grid-column:1/-1;display:flex;align-items:center;justify-content:center;
+  padding:1rem;color:var(--dim);font-size:.82rem}
+.prints .upload{border:2px dashed var(--line);border-radius:6px;min-height:14rem;display:flex;
+  flex-direction:column;align-items:center;justify-content:center;gap:.35rem;text-align:center;padding:1rem;
+  color:var(--dim);background:var(--sunk)}
+.prints .upload:hover{border-color:var(--accent);color:var(--text)}
+.prints .upload .uparrow{font-size:1.6rem;line-height:1;color:var(--accent)}
+.prints .upload .uphint{font-size:.72rem;max-width:14rem;line-height:1.3}
+.sheetwrap .slot.drop{outline:3px solid var(--accent);outline-offset:-3px}
+.sheetwrap .lowdpi{position:absolute;top:.15rem;left:.15rem;background:var(--warn);color:#fff;
+  font-size:.6rem;padding:.05rem .25rem;border-radius:2px;line-height:1.4;pointer-events:none}
+.sheetwrap .killcard{position:absolute;top:.15rem;right:.15rem;width:1.15rem;height:1.15rem;
+  display:grid;place-items:center;border-radius:3px;background:rgba(14,18,24,.78);color:#fff;
+  font-size:.95rem;line-height:1;opacity:0;transition:opacity .12s;cursor:pointer}
+.sheetwrap .slot:hover .killcard,.sheetwrap .slot:focus-within .killcard{opacity:1}
+.sheetwrap .killcard:hover{background:var(--warn)}
+@media (prefers-reduced-motion:reduce){.sheetwrap .killcard{transition:none}}
+.dpi{font-variant-numeric:tabular-nums}
+.dpi.low{color:var(--warn)}
+.dpi.mid{color:#D9A441}
+.dpi.hi{color:var(--good)}
+
+.legal{margin-top:auto;padding:.85rem .8rem 1rem;border-top:1px solid var(--line);
+  background:var(--sunk);font-size:.66rem;line-height:1.45;color:#5C6875;text-align:left}
+.legal p{margin:0 0 .4rem}
+.legal p:last-child{margin-bottom:0}
+.legal strong{color:#8695A4;font-weight:600}
+.legal a{color:#5E8F99;text-decoration:underline}
+.legal a:hover{color:var(--accent)}
+
+.donefold{margin-top:.9rem;border-top:1px solid var(--line)}
+.donefold > summary{padding:.55rem .1rem;font-size:.78rem;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--dim);cursor:pointer;list-style:none;
+  display:flex;align-items:center;gap:.4rem}
+.donefold > summary::-webkit-details-marker{display:none}
+.donefold > summary::before{content:"\25B8";transition:transform .15s;display:inline-block}
+.donefold[open] > summary::before{transform:rotate(90deg)}
+.donefold > summary:hover{color:var(--text)}
+@media (prefers-reduced-motion:reduce){.donefold > summary::before{transition:none}}
+
+#advanced{border-top:1px solid var(--line)}
+#advanced > summary{padding:.55rem .75rem;font-size:.82rem;font-weight:600;letter-spacing:.03em;
+  color:var(--dim);background:var(--sunk);cursor:pointer;list-style:none;display:flex;align-items:center;gap:.4rem}
+#advanced > summary::-webkit-details-marker{display:none}
+#advanced > summary::before{content:"\25B8";transition:transform .15s;display:inline-block}
+#advanced[open] > summary::before{transform:rotate(90deg)}
+#advanced > summary:hover{color:var(--text)}
+@media (prefers-reduced-motion:reduce){#advanced > summary::before{transition:none}}
+
+#status{flex:none;margin:.1rem 0 .4rem;max-width:min(46rem,92%);
+  padding:.45rem 1rem;font-size:.82rem;line-height:1.35;text-align:center;color:var(--dim);
+  background:linear-gradient(180deg,#1C232C,#161C24);
+  border:1px solid var(--line);border-radius:999px;
+  box-shadow:0 2px 10px rgba(0,0,0,.35),0 1px 0 rgba(255,255,255,.04) inset;
+  transition:color .15s,border-color .15s}
+#status:empty{display:none}
+#status.err{color:var(--warn);border-color:rgba(224,100,79,.5)}
+#status.busy{color:var(--text);border-color:rgba(43,166,184,.45)}
+#status.busy::after{content:"";display:inline-block;width:.45rem;height:.45rem;margin-left:.45rem;
+  vertical-align:.05em;border-radius:50%;background:var(--accent);animation:p 1s infinite}
+@media (prefers-reduced-motion:reduce){#status{transition:none}}
+@keyframes p{0%,100%{opacity:.25}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){#status.busy::after{animation:none}}
+/* ---------- narrower screens ---------- */
+@media(max-width:1100px){
+  .shell{grid-template-columns:1fr}
+  .pane{max-height:46vh}
+  .pane.right{border-left:0;border-top:1px solid var(--line)}
+  .pane.left{border-right:0}
+  /* The corner blocks would sit over the sheet, so put them back in the flow. */
+  .stagenote{position:static;text-align:center;max-width:none;margin:.2rem 0 0}
+  .legal{margin-top:0;text-align:center}
+}
+
+/* ---------- phones ---------- */
+@media(max-width:680px){
+  body{font-size:15px}
+  .top{flex-wrap:wrap;gap:.5rem;padding:.55rem .7rem}
+  .top h1{font-size:.95rem}
+  .top .right{margin-left:0;width:100%;display:grid;grid-template-columns:1fr 1fr;gap:.4rem}
+  .top .right .btn{width:100%;text-align:center}
+  .strip{padding:.5rem .7rem;gap:.7rem}
+  .strip label{flex:1 1 9rem}
+  .strip select{width:100%}
+  .fit{margin-left:0;flex-basis:100%}
+  .stage{padding:.8rem .6rem}
+  .pane{max-height:52vh}
+  .sec .body{padding:.6rem}
+  .hits{grid-template-columns:repeat(auto-fill,minmax(70px,1fr))}
+  .th{width:2.4rem;height:3.35rem}
+  .mt .nm{font-size:.92rem}
+  .q button{width:1.7rem;height:1.7rem}          /* easier to hit with a thumb */
+  .drop,.x{padding:.3rem}
+  dialog{max-width:100vw;width:100vw;border-radius:0;border-left:0;border-right:0}
+  .db{padding:.7rem;max-height:74vh}
+  .prints{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.7rem}
+  .dh{flex-wrap:wrap;gap:.4rem}
+  .dh .applyall{margin-left:0;order:3;width:100%;justify-content:center}
+  .dh .note{margin-left:0;flex-basis:100%;order:4}
+  #status{max-width:100%}
+  .legal{font-size:.64rem}
+}
+
+/* Touch devices have no hover, so the card controls need to be permanent. */
+@media(hover:none){
+  .sheetwrap .slot .killcard{opacity:.85}
+  .sheetwrap .slot::after{opacity:.9}
+  .card .add{opacity:1}
+}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>Proxy sheets</h1>
+  <span class="sub" id="topSub">no cards yet</span>
+  <div class="right">
+    <button class="btn" id="btnClear">Clear deck</button>
+    <button class="btn" id="btnOrders" style="display:none">Orders</button>
+    <button class="btn" id="btnSend">Send order</button>
+    <button class="btn go" id="btnPdf">Download PDF</button>
+  </div>
+</div>
+
+<div class="shell">
+
+  <!-- ============ LEFT: cards in ============ -->
+  <div class="pane left">
+    <div class="sec">
+      <h2>Card size
+        <span class="units" id="unitToggle">
+          <button data-u="in">in</button><button data-u="mm" class="on">mm</button>
+        </span>
+      </h2>
+      <div class="body">
+        <label class="f" style="margin-bottom:.5rem">Preset
+          <select id="cardPreset">
+            <option value="63,88">Standard (63.0 &times; 88.0 mm)</option>
+            <option value="63.5,88.9">True MTG (63.5 &times; 88.9 mm)</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <div class="row">
+          <label class="f">Width<input id="cardW" type="number" step="0.01"></label>
+          <label class="f">Height<input id="cardH" type="number" step="0.01"></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h2>Art source</h2>
+      <div class="body">
+        <label class="f" style="margin-bottom:.45rem">Default for new cards
+          <select id="imageSource">
+            <option value="mpc">MPC Autofill &mdash; highest resolution</option>
+            <option value="large">Scryfall JPEG &mdash; square corners</option>
+            <option value="png">Scryfall PNG &mdash; higher resolution</option>
+          </select>
+        </label>
+        <label class="chk" style="margin-bottom:.45rem">
+          <input type="checkbox" id="mpcFirst"> Use MPC Autofill art by default</label>
+        <label class="f">Art proxy
+          <input id="proxyUrl" type="text" placeholder="http://192.168.1.10:8778" spellcheck="false">
+        </label>
+        <label class="f" style="margin-top:.4rem">Proxy token
+          <input id="proxyToken" type="password" placeholder="only if the proxy requires one" spellcheck="false">
+        </label>
+        <label class="f" style="margin-top:.5rem">Minimum quality
+          <select id="mpcMinDpi">
+            <option value="0">Any resolution</option>
+            <option value="300">300 dpi and up</option>
+            <option value="600">600 dpi and up</option>
+            <option value="800">800 dpi and up</option>
+          </select>
+        </label>
+        <label class="chk" style="margin-top:.5rem">
+          <input type="checkbox" id="mpcFuzzy"> Loose name matching</label>
+        <label class="chk" style="margin-top:.35rem">
+          <input type="checkbox" id="scryExtras"> Include Scryfall promos and art series</label>
+        <button class="btn" id="btnSources" style="width:100%;margin-top:.5rem">Choose art drives</button>
+        <p style="color:var(--dim);font-size:.75rem;margin:.35rem 0 0" id="proxyNote">
+          Set this to reach MPC Autofill and Google Drive art. Without it, only
+          uploaded files and Scryfall work.</p>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h2>Find cards</h2>
+      <div class="body">
+        <div class="searchrow">
+          <input id="q" type="search" placeholder="Card name or Scryfall syntax" autocomplete="off">
+          <button class="btn" id="btnSearch">Go</button>
+          <div class="suggest" id="suggest"></div>
+        </div>
+        <div class="hits" id="hits"></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h2>Paste a decklist</h2>
+      <div class="body">
+        <textarea id="importText" placeholder="1x Sol Ring&#10;1x Arcane Signet&#10;2 Command Tower"></textarea>
+        <button class="btn" id="importGo" style="margin-top:.45rem;width:100%">Add these cards</button>
+      </div>
+    </div>
+
+    <div class="sec" style="flex:1;display:flex;flex-direction:column;min-height:12rem;border-bottom:0">
+      <h2>Deck <span class="n" id="deckN">empty</span></h2>
+      <ul class="deck" id="deck"></ul>
+    </div>
+  </div>
+
+  <!-- ============ CENTRE: preview ============ -->
+  <div class="stage">
+    <div class="sheetwrap" id="sheetwrap"></div>
+    <div class="pager" id="pager"></div>
+    <p id="status"></p>
+    <div class="stagenote" id="stagenote"></div>
+
+  </div>
+
+  <!-- ============ RIGHT: page setup ============ -->
+  <div class="pane right">
+    <div class="sec">
+      <h2>Preset</h2>
+      <div class="body">
+        <label class="f">Sheet preset
+          <select id="presetSel">
+            <option value="letter">Standard &mdash; Letter</option>
+            <option value="a4">Standard &mdash; A4</option>
+            <option value="foil">Foil &mdash; Letter, 3 &times; 3, hand cut</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <p style="color:var(--dim);font-size:.75rem;margin:.4rem 0 0" id="presetNote"></p>
+      </div>
+    </div>
+
+    <details id="advanced">
+      <summary>Advanced settings</summary>
+    <div class="sec">
+      <h2>Page</h2>
+      <div class="body">
+        <label class="f" style="margin-bottom:.5rem">Size
+          <select id="paperSel">
+            <option value="letter">Letter (11 &times; 8.5 in)</option>
+            <option value="a4">A4 (210 &times; 297 mm)</option>
+          </select>
+        </label>
+        <div class="row" style="margin-bottom:.5rem">
+          <label class="f">Page width<input id="pageW" type="number" step="0.01"></label>
+          <label class="f">Page height<input id="pageH" type="number" step="0.01"></label>
+        </div>
+        <button class="btn" id="btnSwap" style="width:100%">Swap orientation</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h2>Grid</h2>
+      <div class="body">
+        <div class="row">
+          <label class="f">Columns<input id="cols" type="number" min="1" max="8" step="1"></label>
+          <label class="f">Rows<input id="rows" type="number" min="1" max="8" step="1"></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h2>Bleed</h2>
+      <div class="body">
+        <label class="f">Bleed per edge<input id="bleed" type="number" step="0.01"></label>
+        <p style="color:var(--dim);font-size:.75rem;margin:.4rem 0 0">
+          Silhouette Studio recommends 0.5&nbsp;mm. Card size above is the trim size; bleed is added around it.</p>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h2>Card spacing</h2>
+      <div class="body">
+        <div class="row">
+          <label class="f">Horizontal<input id="colGap" type="number" step="0.01"></label>
+          <label class="f">Vertical<input id="rowGap" type="number" step="0.01"></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h2>Registration marks</h2>
+      <div class="body">
+        <label class="chk" style="margin-bottom:.55rem">
+          <input type="checkbox" id="marksOn"> Print marks for the cutter</label>
+        <div id="markFields">
+          <label class="f" style="margin-bottom:.5rem">Inset from edge<input id="markInset" type="number" step="0.001"></label>
+          <div class="row">
+            <label class="f">Arm length<input id="markArm" type="number" step="0.001"></label>
+            <label class="f">Thickness<input id="markThick" type="number" step="0.001"></label>
+          </div>
+          <label class="f" style="margin-top:.5rem">Square size<input id="markSquare" type="number" step="0.01"></label>
+          <p style="color:var(--dim);font-size:.75rem;margin:.45rem 0 0">
+            Silhouette defaults: 0.350&nbsp;in arms, 0.039&nbsp;in thickness (max), 0.394&nbsp;in inset.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h2>Cut guides</h2>
+      <div class="body">
+        <label class="chk" style="margin-bottom:.55rem">
+          <input type="checkbox" id="guidesOn"> Print guides for hand cutting</label>
+        <div id="guideFields">
+          <label class="f" style="margin-bottom:.5rem">Style
+            <select id="guideStyle">
+              <option value="corners">Corner marks</option>
+              <option value="full">Full lines across the page</option>
+              <option value="both">Corner marks and full lines</option>
+            </select>
+          </label>
+          <label class="chk" style="margin-bottom:.5rem">
+            <input type="checkbox" id="guideMerge"> One line per cut</label>
+          <div class="row">
+            <label class="f">Line width<input id="guideWidth" type="number" step="0.01"></label>
+            <label class="f">Corner length<input id="guideLen" type="number" step="0.01"></label>
+          </div>
+          <div class="row" style="margin-top:.5rem;align-items:end">
+            <label class="f">Line colour<input id="guideColor" type="color" style="height:2rem;padding:.1rem"></label>
+            <label class="f">Corner colour<input id="guideCornerColor" type="color" style="height:2rem;padding:.1rem"></label>
+          </div>
+          <label class="chk" style="margin-top:.5rem"><input type="checkbox" id="guideDash"> Dashed</label>
+          <p style="color:var(--dim);font-size:.75rem;margin:.45rem 0 0">
+            Guides sit on the trim line, inside the bleed. Turn the registration marks off
+            when you're cutting by hand.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec" style="border-bottom:0">
+      <h2>Image</h2>
+      <div class="body">
+        <label class="f" style="margin-bottom:.5rem">Contrast (%)<input id="contrast" type="number" step="1"></label>
+        <label class="chk" style="margin-bottom:.5rem">
+          <input type="checkbox" id="mpcCropOn"> Trim MPC art to its own cut line</label>
+        <div class="row" style="margin-bottom:.5rem">
+          <label class="f">MPC canvas W<input id="mpcCanvasW" type="number" step="0.01"></label>
+          <label class="f">MPC canvas H<input id="mpcCanvasH" type="number" step="0.01"></label>
+        </div>
+        <p style="color:var(--dim);font-size:.75rem;margin:0 0 .5rem" id="mpcCropNote"></p>
+        <label class="f">Corner fill
+          <select id="cornerFill">
+            <option value="#000000">Black (matches card borders)</option>
+            <option value="#FFFFFF">White</option>
+          </select>
+        </label>
+        <p style="color:var(--dim);font-size:.75rem;margin:.45rem 0 0" id="dpiNote"></p>
+        <button class="btn" id="btnReset" style="width:100%;margin-top:.6rem">Restore defaults</button>
+      </div>
+    </div>
+    </details>
+
+    <div class="legal">
+      <p><strong>Magic: The Gathering</strong> and all related card names, artwork, mana symbols
+        and logos are trademarks and copyright of Wizards of the Coast LLC. This is unofficial fan
+        content, neither produced nor endorsed by Wizards of the Coast, made under their
+        Fan Content Policy.</p>
+      <p>Card data and images are provided by <a href="https://scryfall.com" target="_blank"
+           rel="noopener noreferrer">Scryfall</a> under its API terms. Alternative art may come from
+        community sources and remains the property of the artists who made it.</p>
+      <p>Cards produced here are proxies for personal playtesting. They are not authentic cards,
+        are not tournament legal, and should never be represented as official products.</p>
+    </div>
+  </div>
+</div>
+
+
+
+<dialog id="sendDlg" style="max-width:34rem;width:34rem">
+  <div class="dh"><h3>Send this order</h3><button class="close" data-close>&times;</button></div>
+  <div class="db">
+    <p id="sendBlurb" style="margin-top:0;color:var(--dim);font-size:.85rem">
+      This sends the card list and your art choices, not the printed file.
+      Whoever runs this prints it and gets back to you.</p>
+    <label class="f" style="margin-bottom:.6rem">Your name
+      <input id="ordName" type="text" maxlength="60" placeholder="So they know whose deck it is"></label>
+    <label class="f" style="margin-bottom:.6rem">Paper
+      <select id="ordPaper">
+        <option value="blue">Blue core</option>
+        <option value="white">White core</option>
+      </select></label>
+    <label class="f" style="margin-bottom:.6rem">Finish
+      <select id="ordFinish">
+        <option value="cut">Cut to size</option>
+        <option value="uncut">Uncut sheets</option>
+      </select></label>
+    <label class="chk" style="margin-bottom:.7rem">
+      <input type="checkbox" id="ordBox"> Include a deck box</label>
+    <label class="f">Anything else
+      <textarea id="ordNotes" maxlength="1000" style="min-height:5rem"
+        placeholder="Specific printings, deadlines, anything worth knowing"></textarea></label>
+    <p id="ordSummary" style="color:var(--dim);font-size:.8rem;margin:.7rem 0 .6rem"></p>
+    </div>
+  <div class="db" id="ordDone" style="display:none">
+    <p id="ordDoneMsg" style="margin-top:0;font-size:.95rem"></p>
+    <p style="color:var(--dim);font-size:.85rem">
+      Keep this link. Opening it reloads this deck so you can change it and send it again.
+      Anyone with the link can edit the order, so treat it like a shared document.</p>
+    <div style="display:flex;gap:.5rem">
+      <input id="ordLink" type="text" readonly spellcheck="false"
+        style="flex:1;background:var(--sunk);border:1px solid var(--line);border-radius:4px;
+               padding:.45rem .5rem;font-size:.8rem">
+      <button class="btn go" id="ordCopy">Copy</button>
+    </div>
+  </div>
+  <div class="df" id="ordFoot"><button class="btn" data-close>Cancel</button>
+    <button class="btn go" id="ordSend">Send it</button></div>
+  <div class="df" id="ordDoneFoot" style="display:none">
+    <button class="btn go" data-close>Done</button></div>
+</dialog>
+
+<dialog id="ordersDlg" style="max-width:48rem;width:48rem">
+  <div class="dh"><h3>Received orders</h3><button class="close" data-close>&times;</button></div>
+  <div class="db">
+    <label class="f" style="margin-bottom:.6rem">Admin token
+      <input id="adminToken" type="password" placeholder="ADMIN_TOKEN from the proxy"></label>
+    <button class="btn" id="ordersLoad" style="margin-bottom:.8rem">Refresh list</button>
+    <div id="ordersList"></div>
+  </div>
+  <div class="df"><button class="btn" data-close>Close</button></div>
+</dialog>
+
+<dialog id="sourcesDlg" style="max-width:52rem;width:52rem">
+  <div class="dh"><h3>Art drives</h3>
+    <span class="note" id="sourcesNote"></span>
+    <button class="close" data-close style="margin-left:auto">&times;</button></div>
+  <div class="db">
+    <p style="margin-top:0;color:var(--dim);font-size:.85rem">
+      Community drives indexed by MPC Autofill. All are searched by default &mdash; switch off the
+      ones whose style you don't want, and MPC-first will stop picking from them.</p>
+    <div style="display:flex;gap:1.1rem;margin-bottom:.7rem;flex-wrap:wrap">
+      <label class="chk"><input type="checkbox" id="hideAi"> Hide AI-generated art</label>
+      <label class="chk"><input type="checkbox" id="hideForeign"> Hide non-English drives</label>
+    </div>
+    <div style="display:flex;gap:.5rem;margin-bottom:.7rem;flex-wrap:wrap">
+      <input id="sourceFilter" type="search" placeholder="Filter by name or description"
+        style="flex:1;min-width:12rem;background:var(--sunk);border:1px solid var(--line);
+               border-radius:4px;padding:.4rem .5rem">
+      <button class="btn sm" id="sourcesAll">Enable all</button>
+      <button class="btn sm" id="sourcesNone">Disable all</button>
+    </div>
+    <div id="sourcesList" style="max-height:52vh;overflow:auto"></div>
+  </div>
+  <div class="df"><button class="btn go" data-close>Done</button></div>
+</dialog>
+
+<dialog id="printsDlg">
+  <div class="dh"><h3 id="printsTitle">Printings</h3>
+    <span class="tabs" id="printsTabs">
+      <button type="button" data-tab="scryfall" class="on">Scryfall</button>
+      <button type="button" data-tab="mpc">MPC Autofill</button>
+    </span>
+    <label class="applyall" id="applyAllLabel">
+      <input type="checkbox" id="applyAll"> <span>Apply to all copies</span></label>
+    <span class="note" id="printsNote"></span>
+    <button class="close" data-close style="margin-left:auto">&times;</button></div>
+  <div class="db"><div class="prints" id="printsGrid"></div></div>
+  <div class="df"><button class="btn" data-close>Close</button></div>
+</dialog>
+
+<script>
+/* Proxy settings live in proxy-config.json next to this file, so updating the
+   page never wipes them. Create it once:
+
+     {"proxy": "https://art.example.com", "token": "your-token",
+      "operator": "your name"}
+
+   "operator" is optional and only cosmetic: it is the name shown to whoever
+   submits a sheet, so they know who is printing it. Left unset, the copy falls
+   back to impersonal phrasing.
+
+   These constants are only a fallback for when that file is absent. */
+let DEFAULT_PROXY = '';
+let DEFAULT_TOKEN = '';
+let OPERATOR = '';
+
+async function loadProxyConfig(){
+  try{
+    const res = await fetch('proxy-config.json', {cache:'no-store'});
+    if(!res.ok) return false;
+    const cfg = await res.json();
+    if(cfg.proxy){
+      geo.proxyUrl = cfg.proxy.replace(/\/+$/,'');
+      DEFAULT_PROXY = geo.proxyUrl;
+    }
+    if(cfg.token){
+      geo.proxyToken = cfg.token;
+      DEFAULT_TOKEN = cfg.token;
+    }
+    if(typeof cfg.operator === 'string') OPERATOR = cfg.operator.trim().slice(0, 40);
+    return !!cfg.proxy;
+  }catch(e){
+    return false;
+  }
+}
+
+/* ---- Presets --------------------------------------------------------
+   Each preset is a patch over the current settings, so anything it does not
+   name keeps its value. Touching an advanced field afterwards flips to Custom. */
+const PRESETS = {
+  letter: {
+    label: 'Letter landscape, 8 up, Silhouette registration marks.',
+    patch: {pageW:279.4, pageH:215.9, cols:4, rows:2, colGap:0, rowGap:0,
+            marks:true, guides:false}
+  },
+  a4: {
+    label: 'A4 landscape, 8 up, Silhouette registration marks.',
+    patch: {pageW:297, pageH:210, cols:4, rows:2, colGap:0, rowGap:0,
+            marks:true, guides:false}
+  },
+  foil: {
+    label: 'Letter portrait, 9 up with 1 mm gaps. Grey rotary lines, green corner marks, no registration marks.',
+    patch: {pageW:215.9, pageH:279.4, cols:3, rows:3, colGap:1, rowGap:1,
+            marks:false, guides:true, guideStyle:'both', guideMerge:true,
+            guideColor:'#3A3A3A', guideCornerColor:'#39FF14',
+            guideWidth:0.2, guideDash:false}
+  }
+};
+
+let applyingPreset = false;
+
+function applyPreset(name){
+  const preset = PRESETS[name];
+  if(!preset) return;
+  applyingPreset = true;
+  Object.assign(geo, preset.patch);
+  applyingPreset = false;
+  const note = document.getElementById('presetNote');
+  if(note) note.textContent = preset.label;
+  refresh();
+}
+
+/* Any manual change to an advanced field means we are off-preset. */
+function markCustom(){
+  if(applyingPreset) return;
+  const sel = document.getElementById('presetSel');
+  if(sel && sel.value !== 'custom'){
+    sel.value = 'custom';
+    const note = document.getElementById('presetNote');
+    if(note) note.textContent = 'Custom settings.';
+  }
+}
+
+/* Hide the art proxy and token fields when accessed from a public hostname.
+   Visitors on a public host get the values from proxy-config.json silently;
+   the fields are only shown when serving from localhost or a LAN address so
+   the operator can still point the page at a different proxy while testing. */
+const IS_LOCAL = /^(localhost|127\.|192\.168\.|10\.|100\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname)
+              || location.hostname.endsWith('.local')
+              || location.hostname.endsWith('.ts.net');
+
+document.addEventListener('DOMContentLoaded', () => {
+  if(!IS_LOCAL){
+    ['proxyUrl','proxyToken','mpcFirst'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el){
+        const label = el.closest('label');
+        if(label) label.style.display = 'none';
+      }
+    });
+    const note = document.getElementById('proxyNote');
+    if(note) note.style.display = 'none';
+  }
+});
+const IN = 25.4;
+let unit = 'mm';
+const toUnit = mm => unit === 'mm' ? mm : mm / IN;
+const fromUnit = v => unit === 'mm' ? v : v * IN;
+const show = mm => {
+  const v = toUnit(mm);
+  return unit === 'mm' ? Math.round(v*1000)/1000 : Math.round(v*10000)/10000;
+};
+
+const PAPERS = {letter:{name:'Letter',short:215.9,long:279.4}, a4:{name:'A4',short:210,long:297}};
+
+/* Defaults follow Silhouette Studio's own recommended values. */
+const DEFAULTS = {
+  paper:'letter', pageW:279.4, pageH:215.9,
+  cols:4, rows:2,
+  trimW:63.0, trimH:88.0, bleed:0.6,
+  colGap:0, rowGap:0,
+  marks:true,
+  markInset:0.394*IN, markArm:0.350*IN, markThick:0.039*IN, markSquare:5.92,
+  guides:false, guideStyle:'corners', guideLen:6.25, guideWidth:0.2,
+  guideDash:false, guideColor:'#000000', guideCornerColor:'#39FF14', guideMerge:true,
+  imageSource:'large', proxyUrl:DEFAULT_PROXY, proxyToken:DEFAULT_TOKEN, mpcFirst:true,
+  mpcMinDpi:0, mpcSourcesOff:[], mpcFuzzy:false, mpcMaxSize:200, mpcAllowNsfw:false,
+  mpcCropOn:true, mpcCanvasW:69.088, mpcCanvasH:93.98,
+  mpcHideAi:false, mpcHideForeign:false,
+  scryExtras:true,
+  cornerFill:'#000000',
+  contrast:110
+};
+let geo = {...DEFAULTS};
+
+const cardW = () => geo.trimW + 2*geo.bleed;
+const cardH = () => geo.trimH + 2*geo.bleed;
+const blockW = () => geo.cols*cardW() + (geo.cols-1)*geo.colGap;
+const blockH = () => geo.rows*cardH() + (geo.rows-1)*geo.rowGap;
+const originX = () => (geo.pageW - blockW())/2;
+const originY = () => (geo.pageH - blockH())/2;
+const perPage = () => geo.cols*geo.rows;
+
+function markRects(){
+  const i=geo.markInset, s=geo.markSquare, a=geo.markArm, t=geo.markThick;
+  return [
+    [i,i,s,s],                                  // top-left filled square
+    [geo.pageW-i-a, i, a, t], [geo.pageW-i-t, i, t, a],   // top-right L
+    [i, geo.pageH-i-t, a, t], [i, geo.pageH-i-a, t, a]    // bottom-left L
+  ];
+}
+/* Trim rectangles — where the card actually gets cut, inside the bleed. */
+function trimRects(){
+  const ox=originX(), oy=originY(), out=[];
+  for(let n=0;n<perPage();n++){
+    const col=n%geo.cols, row=Math.floor(n/geo.cols);
+    out.push({
+      x: ox + col*(cardW()+geo.colGap) + geo.bleed,
+      y: oy + row*(cardH()+geo.rowGap) + geo.bleed,
+      w: geo.trimW, h: geo.trimH
+    });
+  }
+  return out;
+}
+
+/* Cut guides, as line segments in mm.
+   "full" rules span the whole page for a rotary cutter; "corners" puts short marks
+   at each card's corners; "both" draws each. With butted cards, neighbouring trim
+   lines sit 2x bleed apart — merging collapses each pair to its midpoint so a
+   rotary cutter makes one pass instead of two. */
+function guideSegments(){
+  if(!geo.guides) return [];
+  const segs=[], rects=trimRects();
+  const r2 = v => Math.round(v*100)/100;
+
+  if(geo.guideStyle === 'full' || geo.guideStyle === 'both'){
+    let xs = [...new Set(rects.flatMap(r => [r2(r.x), r2(r.x+r.w)]))].sort((a,b)=>a-b);
+    let ys = [...new Set(rects.flatMap(r => [r2(r.y), r2(r.y+r.h)]))].sort((a,b)=>a-b);
+    if(geo.guideMerge){
+      /* One cut per boundary, placed down the middle of the gutter between two
+         printed cards — that is the midpoint between the edge of one card image
+         and the edge of the next, not between their trim lines. The outermost
+         lines stay on the trim edge so the outside bleed comes off. */
+      const ox = originX(), oy = originY();
+      const cw = cardW(), ch = cardH();
+      xs = [];
+      ys = [];
+      xs.push(r2(ox + geo.bleed));                                  // left trim
+      for(let c = 0; c < geo.cols - 1; c++){
+        const gutterStart = ox + c*(cw + geo.colGap) + cw;          // right edge of this card
+        xs.push(r2(gutterStart + geo.colGap/2));                    // centre of the gutter
+      }
+      xs.push(r2(ox + (geo.cols-1)*(cw + geo.colGap) + cw - geo.bleed));   // right trim
+
+      ys.push(r2(oy + geo.bleed));                                  // top trim
+      for(let r = 0; r < geo.rows - 1; r++){
+        const gutterStart = oy + r*(ch + geo.rowGap) + ch;
+        ys.push(r2(gutterStart + geo.rowGap/2));
+      }
+      ys.push(r2(oy + (geo.rows-1)*(ch + geo.rowGap) + ch - geo.bleed));   // bottom trim
+    }
+    xs.forEach(x => segs.push([x,0,x,geo.pageH,'line']));
+    ys.forEach(y => segs.push([0,y,geo.pageW,y,'line']));
+  }
+
+  if(geo.guideStyle === 'corners' || geo.guideStyle === 'both'){
+    const L = Math.min(geo.guideLen, geo.trimW/2, geo.trimH/2);
+    rects.forEach(r => {
+      [[r.x,r.y,1,1],[r.x+r.w,r.y,-1,1],[r.x,r.y+r.h,1,-1],[r.x+r.w,r.y+r.h,-1,-1]]
+        .forEach(([x,y,sx,sy]) => {
+          segs.push([x,y,x+sx*L,y,'corner']);
+          segs.push([x,y,x,y+sy*L,'corner']);
+        });
+    });
+  }
+  return segs;
+}
+function markClearance(){
+  if(!geo.marks) return Infinity;
+  const ox=originX(), oy=originY(), bw=blockW(), bh=blockH();
+  let worst = Infinity;
+  for(const [x,y,w,h] of markRects()){
+    const gx = Math.max(ox-(x+w), x-(ox+bw));
+    const gy = Math.max(oy-(y+h), y-(oy+bh));
+    worst = Math.min(worst, Math.max(gx,gy));
+  }
+  return worst;
+}
+
+/* ============================================================
+   Scryfall
+   ============================================================ */
+let chain = Promise.resolve(), everSucceeded = false, gap = 180, batchAvailable = true;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const BLOCKED_MSG = 'The browser blocked the connection to Scryfall. If this page is in a sandboxed ' +
+                    'preview, save it and open the file directly.';
+
+async function api(path,{onRetry}={}){
+  const waits=[1500,4000,9000];
+  for(let n=0;;n++){
+    chain = chain.then(()=>sleep(gap)); await chain;
+    let res;
+    try{ res = await fetch('https://api.scryfall.com'+path,{headers:{'Accept':'application/json'}}); }
+    catch(err){
+      if(n<waits.length){ gap=Math.min(gap+120,800); onRetry&&onRetry(everSucceeded); await sleep(waits[n]); continue; }
+      const e=new Error(everSucceeded?'Scryfall stopped responding. Give it a minute.':BLOCKED_MSG);
+      e.blocked=!everSucceeded; e.throttled=everSucceeded; throw e;
+    }
+    if(res.status===429 && n<waits.length){ gap=Math.min(gap+120,800); onRetry&&onRetry(true); await sleep(waits[n]); continue; }
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok){ const e=new Error(data.details||('Scryfall returned '+res.status)); e.notFound=(res.status===404); throw e; }
+    everSucceeded=true; return data;
+  }
+}
+async function apiCollection(ids){
+  chain = chain.then(()=>sleep(gap)); await chain;
+  let res;
+  try{
+    res = await fetch('https://api.scryfall.com/cards/collection',{method:'POST',
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body:JSON.stringify({identifiers:ids})});
+  }catch(e){ batchAvailable=false; const x=new Error('no batch'); x.noBatch=true; throw x; }
+  if(res.status===429){ const x=new Error('busy'); x.throttled=true; throw x; }
+  if(!res.ok){ batchAvailable=false; const x=new Error('no batch'); x.noBatch=true; throw x; }
+  everSucceeded=true; return res.json();
+}
+
+/* Scryfall's published image sizes. The PNG is actually the highest resolution
+   but ships with rounded transparent corners; the large JPEG is square-cornered. */
+const IMAGE_SIZES = {large:[672,936], png:[745,1040], normal:[488,680], small:[146,204]};
+
+function faceUris(card, i){
+  return (card.card_faces && card.card_faces[i] && card.card_faces[i].image_uris)
+       ? card.card_faces[i].image_uris : card.image_uris;
+}
+/* Which file we'd print, and how big it is in pixels. */
+function imageSpec(card, i){
+  const s = faceUris(card, i);
+  if(!s) return null;
+  const order = geo.imageSource === 'png' ? ['png','large','normal'] : ['large','png','normal'];
+  for(const k of order){
+    if(s[k]) return {url:s[k], w:IMAGE_SIZES[k][0], h:IMAGE_SIZES[k][1], kind:k};
+  }
+  return null;
+}
+/* Dots per inch once the image is scaled to the printed card size. */
+function dpiOf(spec){
+  if(!spec) return 0;
+  return Math.round(spec.w / (cardW()/IN));
+}
+/* A deck entry either points at a Scryfall printing or carries an uploaded file. */
+function entrySpec(entry){
+  if(entry.custom) return {url:entry.img, w:entry.customW, h:entry.customH, kind:'upload'};
+  return imageSpec(entry.card, entry.faceIndex);
+}
+function printImage(card,i){
+  const spec = imageSpec(card,i);
+  return spec ? spec.url : null;
+}
+const faceCount = c => c.image_uris ? 1 : (c.card_faces ? c.card_faces.filter(f=>f.image_uris).length : 0);
+const faceName  = (c,i) => (c.card_faces && c.card_faces.length>1 && c.card_faces[i]) ? c.card_faces[i].name : c.name;
+/* Face-aware: a transforming card has its art per face, not on the card itself. */
+function thumbOf(c, i=0){
+  const s = (c.card_faces && c.card_faces[i] && c.card_faces[i].image_uris)
+          ? c.card_faces[i].image_uris : c.image_uris;
+  return s ? (s.normal || s.small || s.png) : '';
+}
+
+/* ============================================================
+   Deck
+   ============================================================ */
+const deck = new Map();
+/* A deck entry is a stack of identical copies. The same card can appear in
+   several entries when copies carry different art, so keys get a suffix. */
+const baseKey = (c,i) => (c.oracle_id||c.id)+'#'+i;
+const keyFor  = (c,i) => baseKey(c,i)+'#0';
+
+function freeKey(c,i){
+  const base = baseKey(c,i);
+  for(let n=0;;n++) if(!deck.has(base+'#'+n)) return base+'#'+n;
+}
+/* The first stack of this card and face, if there is one. */
+function findEntry(c,i){
+  const base = baseKey(c,i)+'#';
+  for(const [k,e] of deck) if(k.startsWith(base)) return e;
+  return null;
+}
+/* Every stack of a given card name and face — what "apply to all" targets. */
+function entriesNamed(name, faceIndex){
+  return [...deck.values()].filter(e => e.name === name && e.faceIndex === faceIndex);
+}
+let splitSeq = 0;
+function uniqueKey(card, faceIndex){
+  let k;
+  do { k = baseKey(card, faceIndex) + '#' + (++splitSeq); } while(deck.has(k));
+  return k;
+}
+
+/* Peel one copy off a stack, keeping it where it sat. Splitting copy 3 of 12
+   leaves 3 before it, the changed copy, then 8 after — so the card the user
+   clicked stays in the same slot on the sheet instead of jumping to the end. */
+function splitAt(entry, index){
+  if(entry.qty <= 1) return entry;
+  const before = Math.max(0, Math.min(index, entry.qty - 1));
+  const after = entry.qty - before - 1;
+  const clone = Object.assign({}, entry, {qty:1, key: uniqueKey(entry.card, entry.faceIndex)});
+  const tail = after > 0
+    ? Object.assign({}, entry, {qty:after, key: uniqueKey(entry.card, entry.faceIndex)})
+    : null;
+  entry.qty = before;
+
+  const rebuilt = new Map();
+  for(const [k,e] of deck){
+    if(e === entry){
+      if(before > 0) rebuilt.set(k, e);
+      rebuilt.set(clone.key, clone);
+      if(tail) rebuilt.set(tail.key, tail);
+    } else {
+      rebuilt.set(k, e);
+    }
+  }
+  deck.clear();
+  for(const [k,e] of rebuilt) deck.set(k, e);
+  return clone;
+}
+/* Kept for callers with no particular copy in mind: split the last one. */
+function splitOne(entry){ return splitAt(entry, entry.qty - 1); }
+
+function addCard(card,{quantity=1,silent=false,forceNew=false}={}){
+  const n = faceCount(card);
+  if(!n){ setStatus('No printable image for '+card.name+'.','err'); return; }
+  const made = [];
+  for(let i=0;i<n;i++){
+    const existing = forceNew ? null : findEntry(card,i);
+    if(existing){
+      existing.qty += quantity;
+      made.push(existing);
+    } else {
+      const k = freeKey(card,i);
+      const entry = {qty:quantity,name:card.name,label:faceName(card,i),faceIndex:i,card,
+                     img:printImage(card,i),thumb:thumbOf(card,i),key:k,
+                     set:(card.set_name||'')+(card.collector_number?' #'+card.collector_number:'')};
+      deck.set(k, entry);
+      made.push(entry);
+    }
+  }
+  renderDeck();
+  made.forEach(e => queueMpc(e));
+  if(!silent) setStatus('Added '+card.name+'.');
+  return made[0];
+}
+const totalCards = () => [...deck.values()].reduce((n,e)=>n+e.qty,0);
+
+function renderDeck(){
+  queueSave();
+  const list = document.getElementById('deck');
+  list.innerHTML = '';
+  if(!deck.size) list.innerHTML = '<li class="empty">Nothing yet. Search above or paste a list.</li>';
+  for(const [k,e] of deck){
+    const li=document.createElement('li');
+    const th=document.createElement('img'); th.className='th'; th.src=e.thumb; th.alt=e.label;
+    th.title='Change art for this whole stack'; th.onclick=()=>openPrints(e, 'stack');
+    const mt=document.createElement('div'); mt.className='mt';
+    const nm=document.createElement('div'); nm.className='nm'; nm.textContent=e.label;
+    const st=document.createElement('div'); st.className='st'; st.textContent=e.set;
+    mt.append(nm,st);
+    const q=document.createElement('div'); q.className='q';
+    const m=document.createElement('button'); m.textContent='\u2212'; m.setAttribute('aria-label','One fewer '+e.label);
+    const c=document.createElement('span'); c.textContent=e.qty;
+    const p=document.createElement('button'); p.textContent='+'; p.setAttribute('aria-label','One more '+e.label);
+    m.onclick=()=>{e.qty--; if(e.qty<1) deck.delete(k); renderDeck();};
+    p.onclick=()=>{e.qty++; renderDeck();};
+    q.append(m,c,p);
+    const x=document.createElement('button'); x.className='x'; x.textContent='\u00d7';
+    x.setAttribute('aria-label','Remove '+e.label); x.onclick=()=>{deck.delete(k); renderDeck();};
+    li.append(th,mt,q,x); list.append(li);
+  }
+  const n = totalCards(), pages = Math.max(1, Math.ceil(n/perPage()));
+  document.getElementById('deckN').textContent = n ? n+' cards' : 'empty';
+  document.getElementById('topSub').textContent = n
+    ? n + ' cards \u00b7 ' + pages + ' sheet' + (pages>1?'s':'')
+    : 'no cards yet';
+  if(curPage >= pages) curPage = pages-1;
+  drawSheet();
+}
+
+document.getElementById('btnClear').onclick = () => {
+  if(!deck.size) return;
+  if(confirm('Remove all '+totalCards()+' cards?')){
+    deck.clear(); curPage=0; clearSession(); renderDeck(); setStatus('Deck cleared.');
+  }
+};
+
+/* ============================================================
+   Sheet preview — the centre pane, drawn to scale
+   ============================================================ */
+let curPage = 0;
+function slotList(){
+  const out=[];
+  for(const e of deck.values()) for(let i=0;i<e.qty;i++) out.push({entry:e, copy:i});
+  return out;
+}
+function drawSheet(){
+  const wrap = document.getElementById('sheetwrap');
+  const stage = wrap.parentElement;
+  /* Reserve whatever the pager, status pill and geometry note actually take,
+     rather than a fixed guess — a portrait sheet otherwise runs off the bottom. */
+  const cs = getComputedStyle(stage);
+  const gapPx = parseFloat(cs.rowGap || cs.gap) || 0;
+  let reserved = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  for(const child of stage.children){
+    if(child === wrap) continue;
+    if(getComputedStyle(child).position === 'absolute') continue;   // out of flow
+    reserved += child.offsetHeight + gapPx;
+  }
+  const availW = Math.max(200, stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight));
+  const availH = Math.max(200, stage.clientHeight - reserved - 4);
+  /* On a narrow screen height is the scarce thing, not width: fitting to both
+     leaves the sheet unreadably small, so let it fill the width and scroll. */
+  const narrow = window.innerWidth <= 680;
+  const scale = narrow ? availW/geo.pageW
+                       : Math.min(availW/geo.pageW, availH/geo.pageH);
+  wrap.style.width = (geo.pageW*scale)+'px';
+  wrap.style.height = (geo.pageH*scale)+'px';
+  wrap.innerHTML = '';
+
+  if(geo.marks) markRects().forEach(([x,y,w,h]) => {
+    const d=document.createElement('div'); d.className='mk';
+    d.style.left=(x*scale)+'px'; d.style.top=(y*scale)+'px';
+    d.style.width=Math.max(1,w*scale)+'px'; d.style.height=Math.max(1,h*scale)+'px';
+    wrap.append(d);
+  });
+
+  const slots = slotList();
+  const start = curPage*perPage();
+  const ox=originX(), oy=originY();
+  for(let n=0;n<perPage();n++){
+    const slot = slots[start+n];
+    const e = slot ? slot.entry : null;
+    const col=n%geo.cols, row=Math.floor(n/geo.cols);
+    const d = document.createElement(e ? 'button' : 'div');
+    d.className = e ? 'slot' : 'ghost';
+    d.style.left=((ox+col*(cardW()+geo.colGap))*scale)+'px';
+    d.style.top=((oy+row*(cardH()+geo.rowGap))*scale)+'px';
+    d.style.width=(cardW()*scale)+'px';
+    d.style.height=(cardH()*scale)+'px';
+    if(e){
+      d.type='button';
+      d.style.backgroundImage='url('+e.thumb+')';
+      d.style.filter='contrast('+geo.contrast+'%)';
+      const crop = needsMpcCrop(e) ? mpcCrop() : null;
+      if(crop){
+        /* Scale up so the kept region exactly fills the slot. */
+        d.style.backgroundSize = (100/(1-2*crop.x)).toFixed(3) + '% ' +
+                                 (100/(1-2*crop.y)).toFixed(3) + '%';
+        d.style.backgroundPosition = 'center center';
+      } else {
+        /* The PDF stretches the image to the slot, so the preview does too —
+           otherwise the preview is not a true proof. */
+        d.style.backgroundSize = '100% 100%';
+        d.style.backgroundPosition = 'center center';
+      }
+      const dpi = dpiOf(entrySpec(e));
+      d.title = e.label + ' \u2014 ' + e.set + '\n' + dpi + ' dpi at the printed size' +
+                '\nClick to choose a different printing, or drop an image file here';
+      d.setAttribute('aria-label','Change the art of '+e.label);
+      d.onclick = () => openPrints(e, slot.copy);
+      d.ondragover = ev => { ev.preventDefault(); d.classList.add('drop'); };
+      d.ondragleave = () => d.classList.remove('drop');
+      d.ondrop = ev => {
+        ev.preventDefault();
+        d.classList.remove('drop');
+        const f = ev.dataTransfer.files && ev.dataTransfer.files[0];
+        if(f) applyCustomImage(e, f);
+      };
+      if(dpi && dpi < 200){
+        const warn=document.createElement('span'); warn.className='lowdpi'; warn.textContent=dpi+' dpi';
+        d.append(warn);
+      }
+      /* Remove one copy, or the whole entry when it is the last one. */
+      const kill = document.createElement('span');
+      kill.className = 'killcard';
+      kill.textContent = '\u00d7';
+      kill.title = e.qty > 1 ? 'Remove one copy of ' + e.label : 'Remove ' + e.label;
+      kill.onclick = ev => {
+        ev.stopPropagation();
+        e.qty--;
+        if(e.qty < 1) deck.delete(e.key);
+        renderDeck();
+      };
+      d.dataset.copy = slot.copy;
+      d.append(kill);
+    }
+    wrap.append(d);
+  }
+
+  guideSegments().forEach(([x1,y1,x2,y2,kind]) => {
+    const colour = kind === 'corner' ? geo.guideCornerColor : geo.guideColor;
+    const d=document.createElement('div'); d.className='gd';
+    const horiz = Math.abs(y2-y1) < 0.001;
+    d.style.left=(Math.min(x1,x2)*scale)+'px';
+    d.style.top=(Math.min(y1,y2)*scale)+'px';
+    d.style.width=(horiz ? Math.abs(x2-x1)*scale : Math.max(1,geo.guideWidth*scale))+'px';
+    d.style.height=(horiz ? Math.max(1,geo.guideWidth*scale) : Math.abs(y2-y1)*scale)+'px';
+    if(geo.guideDash){
+      d.style.background='none';
+      d.style.backgroundImage='repeating-linear-gradient(' + (horiz?'to right':'to bottom') + ',' +
+        colour + ' 0 2px, transparent 2px 4px)';
+    } else {
+      d.style.background=colour;
+    }
+    wrap.append(d);
+  });
+
+  const pages = Math.max(1, Math.ceil(slots.length/perPage()));
+  const pager = document.getElementById('pager');
+  pager.innerHTML='';
+  if(pages>1){
+    const prev=document.createElement('button'); prev.className='btn sm'; prev.textContent='\u2039 Prev';
+    prev.disabled = curPage===0; prev.onclick=()=>{curPage--; drawSheet();};
+    const lbl=document.createElement('span'); lbl.textContent='Sheet '+(curPage+1)+' of '+pages;
+    const next=document.createElement('button'); next.className='btn sm'; next.textContent='Next \u203a';
+    next.disabled = curPage>=pages-1; next.onclick=()=>{curPage++; drawSheet();};
+    pager.append(prev,lbl,next);
+  }
+  updateNote();
+}
+
+function updateNote(){
+  const note = document.getElementById('stagenote');
+  const ox=originX(), oy=originY(), bw=blockW(), bh=blockH();
+  const over = ox < -0.01 || oy < -0.01 || ox+bw > geo.pageW+0.01 || oy+bh > geo.pageH+0.01;
+  if(over){
+    note.className='stagenote bad';
+    note.textContent = 'Cards run off the page \u2014 the block is ' + bw.toFixed(1) + ' \u00d7 ' +
+      bh.toFixed(1) + ' mm on a ' + geo.pageW.toFixed(1) + ' \u00d7 ' + geo.pageH.toFixed(1) + ' mm page.';
+    return false;
+  }
+  const clear = markClearance();
+  const bits = [
+    'card ' + cardW().toFixed(2) + ' \u00d7 ' + cardH().toFixed(2) + ' mm with bleed',
+    'margins ' + ox.toFixed(1) + ' / ' + oy.toFixed(1) + ' mm'
+  ];
+  if(geo.marks) bits.push(clear < 0
+    ? 'marks overlap a card by ' + Math.abs(clear).toFixed(2) + ' mm'
+    : 'mark clearance ' + clear.toFixed(2) + ' mm');
+  else bits.push('no marks');
+  note.className = (geo.marks && clear < 0) ? 'stagenote bad' : 'stagenote';
+  note.textContent = bits.join(' \u00b7 ');
+  return true;
+}
+
+/* ============================================================
+   Controls
+   ============================================================ */
+function bindNum(id, get, set, {integer=false, raw=false} = {}){
+  const el = document.getElementById(id);
+  el.value = raw ? get() : show(get());
+  el.oninput = () => {
+    const v = parseFloat(el.value);
+    if(isNaN(v)) return;
+    set(integer ? Math.max(1, Math.round(v)) : (raw ? v : fromUnit(v)));
+    markCustom();
+    refresh(el);
+  };
+  return el;
+}
+function refreshInputs(skip){
+  const put = (id, mm, raw) => {
+    const el = document.getElementById(id);
+    if(el !== skip) el.value = raw ? mm : show(mm);
+  };
+  put('cardW', geo.trimW); put('cardH', geo.trimH);
+  put('pageW', geo.pageW); put('pageH', geo.pageH);
+  put('bleed', geo.bleed);
+  put('colGap', geo.colGap); put('rowGap', geo.rowGap);
+  put('markInset', geo.markInset); put('markArm', geo.markArm);
+  put('markThick', geo.markThick); put('markSquare', geo.markSquare);
+  put('cols', geo.cols, true); put('rows', geo.rows, true);
+  put('contrast', geo.contrast, true);
+  put('guideWidth', geo.guideWidth); put('guideLen', geo.guideLen);
+  document.getElementById('guidesOn').checked = geo.guides;
+  document.getElementById('guideStyle').value = geo.guideStyle;
+  document.getElementById('guideMerge').checked = geo.guideMerge;
+  document.getElementById('guideDash').checked = geo.guideDash;
+  document.getElementById('guideColor').value = geo.guideColor;
+  document.getElementById('guideCornerColor').value = geo.guideCornerColor;
+  document.getElementById('cornerFill').value = geo.cornerFill;
+  document.getElementById('mpcCropOn').checked = geo.mpcCropOn !== false;
+  put('mpcCanvasW', geo.mpcCanvasW); put('mpcCanvasH', geo.mpcCanvasH);
+  const mc = mpcCrop();
+  document.getElementById('mpcCropNote').textContent = mc
+    ? 'Dropping ' + (mc.x*100).toFixed(2) + '% a side and ' + (mc.y*100).toFixed(2) +
+      '% top and bottom, so MPC art is cut the same as Scryfall art.'
+    : 'MPC art is used whole, which leaves about 2 mm of extra border.';
+  document.getElementById('imageSource').value = geo.mpcFirst ? 'mpc' : geo.imageSource;
+  document.getElementById('mpcMinDpi').value = String(geo.mpcMinDpi || 0);
+  document.getElementById('mpcFuzzy').checked = !!geo.mpcFuzzy;
+  document.getElementById('scryExtras').checked = geo.scryExtras !== false;
+  document.getElementById('guideFields').style.opacity = geo.guides ? 1 : .45;
+
+  document.getElementById('marksOn').checked = geo.marks;
+  document.getElementById('markFields').style.opacity = geo.marks ? 1 : .45;
+  const preset = geo.trimW===63 && geo.trimH===88 ? '63,88'
+               : geo.trimW===63.5 && geo.trimH===88.9 ? '63.5,88.9' : 'custom';
+  document.getElementById('cardPreset').value = preset;
+  const p = Object.entries(PAPERS).find(([k,v]) =>
+    (Math.abs(geo.pageW-v.long)<.1 && Math.abs(geo.pageH-v.short)<.1) ||
+    (Math.abs(geo.pageW-v.short)<.1 && Math.abs(geo.pageH-v.long)<.1));
+  document.getElementById('paperSel').value = p ? p[0] : 'letter';
+}
+function refresh(skip){ refreshInputs(skip); drawSheet(); queueSave(); }
+
+bindNum('cardW', ()=>geo.trimW, v=>geo.trimW=v);
+bindNum('cardH', ()=>geo.trimH, v=>geo.trimH=v);
+bindNum('pageW', ()=>geo.pageW, v=>geo.pageW=v);
+bindNum('pageH', ()=>geo.pageH, v=>geo.pageH=v);
+bindNum('bleed', ()=>geo.bleed, v=>geo.bleed=v);
+bindNum('colGap',()=>geo.colGap,v=>geo.colGap=v);
+bindNum('rowGap',()=>geo.rowGap,v=>geo.rowGap=v);
+bindNum('markInset',()=>geo.markInset,v=>geo.markInset=v);
+bindNum('markArm',()=>geo.markArm,v=>geo.markArm=v);
+bindNum('markThick',()=>geo.markThick,v=>geo.markThick=v);
+bindNum('markSquare',()=>geo.markSquare,v=>geo.markSquare=v);
+bindNum('cols',()=>geo.cols,v=>{geo.cols=v; curPage=0;},{integer:true,raw:true});
+bindNum('rows',()=>geo.rows,v=>{geo.rows=v; curPage=0;},{integer:true,raw:true});
+bindNum('contrast',()=>geo.contrast,v=>geo.contrast=v,{raw:true});
+bindNum('guideWidth',()=>geo.guideWidth,v=>geo.guideWidth=v);
+bindNum('guideLen',()=>geo.guideLen,v=>geo.guideLen=v);
+
+document.getElementById('guidesOn').onchange = e => { geo.guides = e.target.checked; markCustom(); refresh(); };
+document.getElementById('guideStyle').onchange = e => { geo.guideStyle = e.target.value; markCustom(); refresh(); };
+document.getElementById('guideMerge').onchange = e => { geo.guideMerge = e.target.checked; markCustom(); refresh(); };
+document.getElementById('guideDash').onchange = e => { geo.guideDash = e.target.checked; markCustom(); refresh(); };
+document.getElementById('guideColor').oninput = e => { geo.guideColor = e.target.value; markCustom(); drawSheet(); };
+document.getElementById('guideCornerColor').oninput = e => { geo.guideCornerColor = e.target.value; markCustom(); drawSheet(); };
+document.getElementById('cornerFill').onchange = e => { geo.cornerFill = e.target.value; };
+document.getElementById('mpcCropOn').onchange = e => {
+  geo.mpcCropOn = e.target.checked; markCustom(); refresh();
+  setStatus(geo.mpcCropOn
+    ? 'MPC art is trimmed to its own cut line, so borders print at the right thickness.'
+    : 'MPC art now fills the slot whole, which leaves about 2 mm of extra border.');
+};
+bindNum('mpcCanvasW', ()=>geo.mpcCanvasW, v=>geo.mpcCanvasW=v);
+bindNum('mpcCanvasH', ()=>geo.mpcCanvasH, v=>geo.mpcCanvasH=v);
+document.getElementById('presetSel').onchange = e => {
+  if(e.target.value === 'custom'){
+    document.getElementById('presetNote').textContent = 'Custom settings.';
+    return;
+  }
+  applyPreset(e.target.value);
+};
+
+const proxyInput = document.getElementById('proxyUrl');
+const tokenInput = document.getElementById('proxyToken');
+proxyInput.value = geo.proxyUrl;
+tokenInput.value = geo.proxyToken;
+tokenInput.oninput = () => { geo.proxyToken = tokenInput.value; };
+document.getElementById('mpcFirst').checked = geo.mpcFirst;
+document.getElementById('mpcFirst').onchange = e => {
+  geo.mpcFirst = e.target.checked;
+  if(geo.mpcFirst) for(const entry of deck.values()) if(!entry.custom) queueMpc(entry);
+};
+let proxyTimer = null;
+proxyInput.oninput = () => {
+  geo.proxyUrl = proxyInput.value;
+  clearTimeout(proxyTimer);
+  const note = document.getElementById('proxyNote');
+  if(!proxyBase()){
+    note.textContent = 'Set this to reach MPC Autofill and Google Drive art. ' +
+                       'Without it, only uploaded files and Scryfall work.';
+    note.style.color = 'var(--dim)';
+    return;
+  }
+  note.textContent = 'Checking\u2026';
+  proxyTimer = setTimeout(async () => {
+    try{
+      const res = await fetch(withToken(proxyBase() + '/health'));
+      const j = await res.json();
+      note.textContent = j.ok ? 'Proxy is up. Backend: ' + (j.backend || 'unset') : 'Proxy replied oddly.';
+      note.style.color = j.ok ? 'var(--good)' : 'var(--warn)';
+    }catch(e){
+      note.textContent = 'No answer from that address.';
+      note.style.color = 'var(--warn)';
+    }
+  }, 600);
+};
+
+document.getElementById('imageSource').onchange = e => {
+  const v = e.target.value;
+  geo.mpcFirst = (v === 'mpc');
+  geo.imageSource = (v === 'mpc') ? 'large' : v;   // Scryfall fallback behind MPC
+  if(geo.mpcFirst){
+    for(const entry of deck.values()) if(!entry.custom) queueMpc(entry);
+  }
+  /* Re-point Scryfall-backed cards at the new source; leave uploads alone. */
+  for(const entry of deck.values()){
+    if(entry.custom) continue;
+    entry.img = printImage(entry.card, entry.faceIndex) || printImage(entry.card, 0);
+  }
+  refresh();
+};
+
+document.getElementById('unitToggle').onclick = ev => {
+  const b = ev.target.closest('button'); if(!b) return;
+  unit = b.dataset.u;
+  [...ev.currentTarget.children].forEach(x => x.classList.toggle('on', x===b));
+  refresh();
+};
+document.getElementById('cardPreset').onchange = e => {
+  if(e.target.value==='custom') return;
+  const [w,h] = e.target.value.split(',').map(Number);
+  geo.trimW=w; geo.trimH=h; refresh();
+};
+document.getElementById('paperSel').onchange = e => {
+  const p = PAPERS[e.target.value];
+  const wasLandscape = geo.pageW > geo.pageH;
+  geo.pageW = wasLandscape ? p.long : p.short;
+  geo.pageH = wasLandscape ? p.short : p.long;
+  refresh();
+};
+document.getElementById('btnSwap').onclick = () => {
+  const w = geo.pageW; geo.pageW = geo.pageH; geo.pageH = w; refresh();
+};
+document.getElementById('marksOn').onchange = e => { geo.marks = e.target.checked; markCustom(); refresh(); };
+document.getElementById('btnReset').onclick = () => { geo = {...DEFAULTS}; refresh(); setStatus('Settings restored to defaults.'); };
+window.addEventListener('resize', () => drawSheet());
+
+/* Re-fit the sheet when the furniture under it changes height. */
+if('ResizeObserver' in window){
+  let pending = false;
+  const watcher = new ResizeObserver(() => {
+    if(pending) return;
+    pending = true;
+    requestAnimationFrame(() => { pending = false; drawSheet(); });
+  });
+  ['status','stagenote','pager'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) watcher.observe(el);
+  });
+}
+
+/* ============================================================
+   Search
+   ============================================================ */
+const qBox = document.getElementById('q'), suggest = document.getElementById('suggest');
+let acTimer=null, acIndex=-1;
+qBox.addEventListener('input', () => {
+  const v = qBox.value.trim();
+  clearTimeout(acTimer);
+  if(v.length<3 || /[:<>=!]/.test(v)){ hideSuggest(); return; }
+  acTimer = setTimeout(async () => {
+    try{
+      const d = await api('/cards/autocomplete?q='+encodeURIComponent(v));
+      if(!d.data || !d.data.length){ hideSuggest(); return; }
+      suggest.innerHTML='';
+      d.data.slice(0,10).forEach(name => {
+        const b=document.createElement('button'); b.type='button'; b.textContent=name;
+        b.onclick=()=>{ qBox.value=name; hideSuggest(); doSearch(); };
+        suggest.append(b);
+      });
+      suggest.style.display='block'; acIndex=-1;
+    }catch(e){ hideSuggest(); }
+  }, 220);
+});
+qBox.addEventListener('keydown', ev => {
+  const items=[...suggest.querySelectorAll('button')];
+  if(ev.key==='Enter' && acIndex<0){ ev.preventDefault(); hideSuggest(); doSearch(); return; }
+  if(!items.length) return;
+  if(ev.key==='ArrowDown'||ev.key==='ArrowUp'){
+    ev.preventDefault();
+    acIndex = ev.key==='ArrowDown' ? Math.min(acIndex+1,items.length-1) : Math.max(acIndex-1,0);
+    items.forEach((b,i)=>b.classList.toggle('on', i===acIndex));
+  } else if(ev.key==='Enter'){ ev.preventDefault(); items[acIndex].click(); }
+  else if(ev.key==='Escape') hideSuggest();
+});
+document.addEventListener('click', ev => { if(!suggest.contains(ev.target) && ev.target!==qBox) hideSuggest(); });
+function hideSuggest(){ suggest.style.display='none'; suggest.innerHTML=''; acIndex=-1; }
+
+document.getElementById('btnSearch').onclick = doSearch;
+async function doSearch(){
+  const q = qBox.value.trim(); if(!q) return;
+  setStatus('Searching\u2026','busy');
+  try{
+    const d = await api('/cards/search?q='+encodeURIComponent(q)+'&unique=cards');
+    const box = document.getElementById('hits'); box.innerHTML='';
+    d.data.forEach(card => {
+      if(!faceCount(card)) return;
+      const b=document.createElement('button'); b.className='hit'; b.type='button'; b.title=card.name+' \u2014 '+card.set_name;
+      const im=document.createElement('img'); im.loading='lazy'; im.src=thumbOf(card); im.alt=card.name;
+      b.append(im); b.onclick=()=>addCard(card); box.append(b);
+    });
+    setStatus(d.total_cards+' matches'+(d.has_more?' (first '+d.data.length+' shown)':'')+'.');
+  }catch(err){
+    setStatus(err.blocked ? BLOCKED_MSG : 'Nothing found for that search.','err');
+  }
+}
+
+/* ============================================================
+   Printings
+   ============================================================ */
+/* Read a chosen file, measure it, and attach it to a deck entry. */
+function applyCustomImage(entry, file, meta){
+  if(!file || !/^image\//.test(file.type)){ setStatus('That file is not an image.','err'); return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const probe = new Image();
+    probe.onload = () => {
+      const art = {
+        custom: true,
+        customW: probe.naturalWidth,
+        customH: probe.naturalHeight,
+        mpcId: (meta && meta.mpcId) || null,
+        viaMpc: !!(meta && meta.mpcId),
+        img: reader.result,
+        thumb: reader.result,
+        set: (meta && meta.label ? meta.label + ' \u00b7 ' : 'uploaded \u00b7 ') +
+             probe.naturalWidth + ' \u00d7 ' + probe.naturalHeight + ' px'
+      };
+      /* For MPC art keep the proxy urls rather than the data url: previews stay
+         small and the PDF pulls the full file at export. */
+      if(meta && meta.mpcId){
+        art.img = driveUrl(meta.mpcId);
+        art.thumb = meta.thumb || thumbUrl(meta.mpcId, 400);
+      }
+      const dpi = Math.round(probe.naturalWidth / (cardW()/IN));
+      applyArt(entry, art, 'Using that image for ' + entry.label + ' at ' + dpi + ' dpi');
+      if(dpi < 200) setStatus('That art is only ' + dpi + ' dpi at the printed size; it may look soft.','err');
+    };
+    probe.onerror = () => setStatus('Could not read that image.','err');
+    probe.src = reader.result;
+  };
+  reader.onerror = () => setStatus('Could not read that file.','err');
+  reader.readAsDataURL(file);
+}
+
+function uploadTile(entry){
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'upload';
+  b.innerHTML = '<div class="uparrow">&#8593;</div><div>Upload your own</div>' +
+                '<div class="uphint">PNG or JPEG at any resolution &mdash; ' +
+                'drop one on a card in the preview too</div>';
+  b.onclick = () => {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*';
+    inp.onchange = () => {
+      if(inp.files && inp.files[0]){ applyCustomImage(entry, inp.files[0]); printsDlg.close(); }
+    };
+    inp.click();
+  };
+  return b;
+}
+
+/* Pull an image through the art proxy. Google Drive and the MPC Autofill CDN
+   send no CORS headers, so the browser can't read their pixels for the PDF;
+   fetching them server-side sidesteps that entirely. */
+function proxyBase(){
+  return (geo.proxyUrl || '').trim().replace(/\/+$/,'');
+}
+/* Previews come from the proxy's downscaled /thumb route; the PDF uses the
+   full file from /drive. Full MPC art runs 5-15 MB a card, which is far too
+   much to send just to draw a postage-stamp preview. */
+function driveUrl(id){
+  return withToken(proxyBase() + '/drive?id=' + encodeURIComponent(id));
+}
+/* Round to a few fixed widths so the proxy cache is shared rather than
+   fragmented across every possible pixel size. */
+function thumbWidth(cssPx){
+  const want = cssPx * Math.min(window.devicePixelRatio || 1, 2);
+  for(const step of [200, 300, 400, 500, 700]) if(want <= step) return step;
+  return 700;
+}
+function thumbUrl(id, width){
+  return withToken(proxyBase() + '/thumb?id=' + encodeURIComponent(id) +
+                   '&w=' + (width || 400));
+}
+
+/* The token, when the proxy is configured to require one. */
+function withToken(url){
+  const t = (geo.proxyToken || '').trim();
+  if(!t) return url;
+  return url + (url.includes('?') ? '&' : '?') + 'k=' + encodeURIComponent(t);
+}
+async function fetchViaProxy(raw){
+  const base = proxyBase();
+  if(!base) throw new Error('No art proxy is set. Add one in Art source on the left.');
+  const id = raw.match(/^[A-Za-z0-9_-]{10,}$/) ? raw
+           : (raw.match(/\/file\/d\/([A-Za-z0-9_-]{10,})/) || [])[1];
+  const url = withToken(id ? base + '/drive?id=' + encodeURIComponent(id)
+                           : base + '/img?u=' + encodeURIComponent(raw));
+  const res = await proxyFetch(url);
+  if(!res.ok){
+    let why = 'the proxy returned ' + res.status;
+    try{ const j = await res.json(); if(j.error) why = j.error; }catch(e){}
+    throw new Error(why);
+  }
+  const blob = await res.blob();
+  if(!/^image\//.test(blob.type)) throw new Error('that url did not return an image');
+  return new File([blob], 'art', {type:blob.type});
+}
+
+function urlTile(entry){
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'upload';
+  b.innerHTML = '<div class="uparrow">&#8599;</div><div>Add from a link</div>' +
+                '<div class="uphint">An MPC Autofill image, a Google Drive link ' +
+                'or file id, or any image url</div>';
+  b.onclick = async () => {
+    const raw = prompt('Paste an image url, a Google Drive link, or a Drive file id:');
+    if(!raw) return;
+    setStatus('Fetching through the proxy\u2026','busy');
+    try{
+      const cleaned = raw.trim();
+      const driveId = cleaned.match(/^[A-Za-z0-9_-]{10,}$/) ? cleaned
+                    : (cleaned.match(/\/file\/d\/([A-Za-z0-9_-]{10,})/) || [])[1] || null;
+      const file = await fetchViaProxy(cleaned);
+      applyCustomImage(entry, file, driveId ? {mpcId:driveId, label:'from link'} : null);
+      printsDlg.close();
+    }catch(err){
+      setStatus('Could not fetch that image \u2014 ' + err.message, 'err');
+    }
+  };
+  return b;
+}
+
+/* ---- MPC Autofill, via the proxy -------------------------------------
+   POST /2/editorSearch/ returns Google Drive identifiers for a query;
+   POST /2/cards/ turns those identifiers into metadata. Both need the proxy
+   because mpcfill.com and Drive send no CORS headers of their own. */
+let mpcSources = null;
+
+/* Cloudflare rate-limits the proxy hostname, so space requests out and back
+   off when it says 429 rather than hammering through the whole deck. */
+let proxyChain = Promise.resolve();
+let proxyGap = 250;
+
+async function proxyFetch(url, opts){
+  proxyChain = proxyChain.then(() => sleep(proxyGap));
+  await proxyChain;
+  const waits = [2000, 5000, 12000];
+  for(let n=0;;n++){
+    const res = await fetch(url, opts);
+    if(res.status === 429 && n < waits.length){
+      proxyGap = Math.min(proxyGap + 250, 2000);
+      setStatus('Proxy is rate-limiting \u2014 slowing down\u2026','busy');
+      await sleep(waits[n]);
+      continue;
+    }
+    return res;
+  }
+}
+
+async function mpcPost(path, body){
+  const base = proxyBase();
+  if(!base) throw new Error('No art proxy is set.');
+  const res = await proxyFetch(withToken(base + '/api' + path), {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+  });
+  if(!res.ok){
+    let why = 'the proxy returned ' + res.status;
+    if(res.status === 429) why = 'the proxy is rate-limited right now \u2014 try again shortly';
+    try{ const j = await res.json(); if(j.error) why = j.error; }catch(e){}
+    throw new Error(why);
+  }
+  return res.json();
+}
+
+/* The backend publishes its drive registry at /2/sources/. Numbering has gaps,
+   so fetch the real list rather than guessing a range. */
+let sourceList = null;          // [{pk, name, key, description}]
+const MPC_RESULT_LIMIT = 2000;  // a safety ceiling, not a display cap
+
+async function mpcGet(path){
+  const base = proxyBase();
+  if(!base) throw new Error('No art proxy is set.');
+  const res = await proxyFetch(withToken(base + '/api' + path));
+  if(!res.ok) throw new Error('the proxy returned ' + res.status);
+  return res.json();
+}
+
+async function loadSources(){
+  if(sourceList) return sourceList;
+  try{
+    const data = await mpcGet('/2/sources/');
+    const rows = data && data.results ? Object.values(data.results) : [];
+    sourceList = rows
+      .filter(r => r && typeof r.pk === 'number')
+      .map(r => ({pk:r.pk, name:r.name || r.key || ('Source ' + r.pk),
+                  description:r.description || ''}))
+      .sort((a,b) => a.name.localeCompare(b.name));
+  }catch(err){
+    console.warn('could not load MPC sources', err);
+    sourceList = [];
+  }
+  return sourceList;
+}
+
+/* Drives describe themselves, so their own blurbs are what we classify on.
+   The negation test matters: several say "never AI" or "non AI art", and
+   flagging those would be exactly backwards. */
+const AI_NEG = /(never|non[-\s]?|no|without|avoid\w*)\s*(use\s+of\s+|use\s+|gen)?ai\b/i;
+const AI_POS = /\bAI\b|\bgenAI\b|midjourney|dall[-\s]?e|wombo|stable\s+diffusion|generative\s+(fill|outpaint\w*|art)/i;
+const LANG_RE = /\b(french|german|portuguese|spanish|italian|japanese|korean|chinese|russian|brazilian)\b|non[-\s]?english/i;
+
+function sourceFlags(src){
+  const d = src.description || '';
+  return {
+    ai: AI_POS.test(d) && !AI_NEG.test(d),
+    foreign: LANG_RE.test(d)
+  };
+}
+/* Hidden by a filter rather than by an individual choice. */
+function sourceFiltered(src){
+  const f = sourceFlags(src);
+  if(geo.mpcHideAi && f.ai) return 'AI art';
+  if(geo.mpcHideForeign && f.foreign) return 'non-English';
+  return null;
+}
+
+/* [id, enabled] pairs for the search call, honouring anything switched off. */
+function allSources(){
+  const off = new Set(geo.mpcSourcesOff || []);
+  if(sourceList && sourceList.length){
+    return sourceList.map(src => [src.pk, !off.has(src.pk) && !sourceFiltered(src)]);
+  }
+  const out = [];
+  for(let i=1;i<=320;i++) out.push([i, !off.has(i)]);
+  return out;
+}
+
+/* Pull every Drive-shaped identifier out of whatever shape the response has. */
+function harvestIds(node, out=[]){
+  if(typeof node === 'string'){
+    if(/^[A-Za-z0-9_-]{20,}$/.test(node)) out.push(node);
+  } else if(Array.isArray(node)){
+    node.forEach(n => harvestIds(n, out));
+  } else if(node && typeof node === 'object'){
+    Object.values(node).forEach(n => harvestIds(n, out));
+  }
+  return out;
+}
+/* Likewise for card records — anything with an identifier and a dpi. */
+function harvestCards(node, out=[]){
+  if(Array.isArray(node)) node.forEach(n => harvestCards(n, out));
+  else if(node && typeof node === 'object'){
+    const id = node.identifier || node.id;
+    if(typeof id === 'string' && /^[A-Za-z0-9_-]{20,}$/.test(id)) out.push(node);
+    else Object.values(node).forEach(n => harvestCards(n, out));
+  }
+  return out;
+}
+
+/* These filters came from one captured mpcfill session, so they carried that
+   UI's defaults — a 30 MB size cap and exact-match-only search. The size cap in
+   particular hides the biggest renders, which are exactly the high-resolution
+   ones worth having. Ceilings are now generous and the knobs are exposed. */
+const SEARCH_SETTINGS = () => ({
+  searchTypeSettings:{
+    fuzzySearch: !!geo.mpcFuzzy,
+    filterCardbacks: false
+  },
+  sourceSettings:{sources: allSources()},
+  filterSettings:{
+    minimumDPI: geo.mpcMinDpi || 0,
+    maximumDPI: 1500,
+    maximumSize: geo.mpcMaxSize || 200,          // MB
+    languages: [],
+    includesTags: [],
+    excludesTags: geo.mpcAllowNsfw ? [] : ['NSFW']
+  }
+});
+
+/* Their search takes a list of queries, so a whole deck costs one request
+   rather than one per card. Pull the per-query id lists back out of whatever
+   shape the response has by looking for an object keyed by our own queries. */
+function mapQueryResults(node, wanted){
+  const want = new Set(wanted);
+  let found = null;
+  (function walk(n){
+    if(found || !n || typeof n !== 'object') return;
+    if(!Array.isArray(n)){
+      const keys = Object.keys(n);
+      if(keys.length && keys.some(k => want.has(k.toLowerCase()))){ found = n; return; }
+      Object.values(n).forEach(walk);
+    } else {
+      n.forEach(walk);
+    }
+  })(node);
+  if(!found) return null;
+  const out = new Map();
+  for(const [k,v] of Object.entries(found)){
+    const ids = [...new Set(harvestIds(v))];
+    if(ids.length) out.set(k.toLowerCase(), ids);
+  }
+  return out;
+}
+
+/* Look up many names at once. Returns Map(nameLower -> [identifiers]). */
+async function mpcSearchMany(names){
+  const queries = [...new Set(names.map(n => n.toLowerCase()))];
+  const result = new Map();
+  const CHUNK = 60;
+  for(let i=0;i<queries.length;i+=CHUNK){
+    const slice = queries.slice(i, i+CHUNK);
+    const search = await mpcPost('/2/editorSearch/', {
+      searchSettings: SEARCH_SETTINGS(),
+      queries: slice.map(q => ({query:q, cardType:'CARD'}))
+    });
+    const mapped = mapQueryResults(search, slice);
+    if(mapped){
+      for(const [k,v] of mapped) result.set(k, v);
+    } else if(slice.length === 1){
+      /* Could not match by key, but with one query the whole response is it. */
+      result.set(slice[0], [...new Set(harvestIds(search))]);
+    } else {
+      console.warn('MPC batch response could not be mapped; falling back', search);
+      for(const q of slice){
+        const one = await mpcPost('/2/editorSearch/', {
+          searchSettings: SEARCH_SETTINGS(),
+          queries: [{query:q, cardType:'CARD'}]
+        });
+        result.set(q, [...new Set(harvestIds(one))]);
+      }
+    }
+  }
+  return result;
+}
+
+/* Metadata for a batch of identifiers, as Map(id -> card). */
+async function mpcCards(ids){
+  const out = new Map();
+  const CHUNK = 400;
+  for(let i=0;i<ids.length;i+=CHUNK){
+    const meta = await mpcPost('/2/cards/', {cardIdentifiers: ids.slice(i, i+CHUNK)});
+    harvestCards(meta).forEach(c => out.set(c.identifier || c.id, c));
+  }
+  return out;
+}
+
+/* Returns every identifier the search matched. Basics like Forest can run to
+   hundreds, so the list is paged into the grid rather than rendered at once. */
+async function mpcSearch(name){
+  const found = await mpcSearchMany([name]);
+  return (found.get(name.toLowerCase()) || []).slice(0, MPC_RESULT_LIMIT);
+}
+
+/* MPC renders to a fixed canvas: 2.72 x 3.70 in with bleed, trimmed at
+   2.5 x 3.5. Every drive follows it — the order data shows 2187x2975 and
+   3264x4440, both 0.73514 to five figures. Dropping that whole canvas into a
+   near-trim-sized slot shrinks the card by ~2 mm a side, so the surplus bleed
+   is cropped off instead. Scryfall art is already trim-sized and is left alone. */
+const MPC_CANVAS = {w: 69.088, h: 93.98, trimW: 63.5, trimH: 88.9};
+
+/* Crop MPC art back to its own trim line, so the card's edge sits at the edge
+   of the slot — the same place a Scryfall image lands, since those are already
+   trim-sized. Both sources then get cut identically. Independent of the sheet's
+   card size: it only depends on MPC's own canvas. */
+function mpcCrop(){
+  if(!geo.mpcCropOn) return null;
+  const x = (geo.mpcCanvasW - MPC_CANVAS.trimW) / 2 / geo.mpcCanvasW;
+  const y = (geo.mpcCanvasH - MPC_CANVAS.trimH) / 2 / geo.mpcCanvasH;
+  if(!(x > 0) && !(y > 0)) return null;
+  return {x: Math.max(0, Math.min(x, 0.2)), y: Math.max(0, Math.min(y, 0.2))};
+}
+/* Only art that came from an MPC drive carries that canvas. */
+const needsMpcCrop = e => !!(e && e.viaMpc && e.mpcId);
+
+const MPC_PAGE = 60;
+let mpcView = {ids: [], shown: 0, entry: null, observer: null, busy: false};
+
+function mpcTile(entry, id, card){
+  card = card || {};
+  const b = document.createElement('button');
+  b.type = 'button';
+  const im = document.createElement('img');
+  im.loading = 'lazy';
+  im.decoding = 'async';
+  im.width = 250; im.height = 349;        // reserve space so the grid stops reflowing
+  im.src = thumbUrl(id, thumbWidth(250));
+  im.alt = card.name || 'MPC art';
+  im.onerror = () => { im.replaceWith(Object.assign(document.createElement('div'),
+    {className:'lb', textContent:'preview unavailable'})); };
+  const lb = document.createElement('div'); lb.className = 'lb';
+  lb.textContent = card.name || id.slice(0,12) + '\u2026';
+  const sub = document.createElement('div'); sub.className = 'sub';
+  const bits = [];
+  const src = card.source_name || card.source;
+  if(src) bits.push(src);
+  if(card.dpi) bits.push(card.dpi + ' dpi');
+  sub.textContent = bits.join(' \u00b7 ') || 'MPC Autofill';
+  b.append(im, lb, sub);
+  b.onclick = () => {
+    /* No download here: the preview uses the thumbnail and the PDF pulls the
+       full file at export, so picking art costs a few kilobytes. */
+    applyArt(entry, {
+      custom:true, viaMpc:true, mpcId:id,
+      img: driveUrl(id), thumb: thumbUrl(id, 400),
+      customW:0, customH:0,
+      set: 'MPC' + (src ? ' \u00b7 ' + src : '') + (card.dpi ? ' \u00b7 ' + card.dpi + ' dpi' : '')
+    }, 'Using MPC art for ' + entry.label);
+    printsDlg.close();
+  };
+  return b;
+}
+
+function mpcNote(){
+  const total = mpcView.ids.length;
+  document.getElementById('printsNote').textContent =
+    total + ' MPC result' + (total === 1 ? '' : 's') +
+    (mpcView.shown < total ? ' \u00b7 showing ' + mpcView.shown : '') +
+    (geo.mpcMinDpi ? ' \u00b7 ' + geo.mpcMinDpi + '+ dpi' : '') +
+    (geo.mpcFuzzy ? ' \u00b7 fuzzy' : '');
+}
+
+/* Render the next slice, pulling metadata only for the cards about to appear. */
+async function mpcMore(){
+  if(mpcView.busy) return;
+  const slice = mpcView.ids.slice(mpcView.shown, mpcView.shown + MPC_PAGE);
+  if(!slice.length) return;
+  mpcView.busy = true;
+
+  const grid = document.getElementById('printsGrid');
+  const sentinel = document.getElementById('mpcSentinel');
+  if(sentinel) sentinel.textContent = 'Loading more\u2026';
+
+  let meta = new Map();
+  try{ meta = await mpcCards(slice); }
+  catch(err){ console.warn('MPC metadata failed', err); }
+
+  slice.forEach(id => {
+    const tile = mpcTile(mpcView.entry, id, meta.get(id));
+    if(sentinel) grid.insertBefore(tile, sentinel);
+    else grid.append(tile);
+  });
+  mpcView.shown += slice.length;
+  mpcNote();
+
+  if(sentinel){
+    if(mpcView.shown >= mpcView.ids.length){
+      if(mpcView.observer) mpcView.observer.disconnect();
+      sentinel.remove();
+    } else {
+      sentinel.textContent = 'Scroll for more';
+    }
+  }
+  mpcView.busy = false;
+}
+
+async function showMpc(entry){
+  const grid = document.getElementById('printsGrid');
+  grid.innerHTML = '<p style="color:var(--dim)">Searching MPC Autofill\u2026</p>';
+  if(mpcView.observer) mpcView.observer.disconnect();
+
+  let ids;
+  try{
+    ids = await mpcSearch(entry.name);
+  }catch(err){
+    grid.innerHTML = '<p style="color:var(--warn)">MPC Autofill search failed \u2014 ' +
+                     err.message + '</p>';
+    return;
+  }
+
+  grid.innerHTML = '';
+  grid.append(uploadTile(entry), urlTile(entry));
+  mpcView = {ids, shown: 0, entry, observer: null, busy: false};
+  mpcNote();
+
+  if(!ids.length){
+    const p = document.createElement('p');
+    p.style.color = 'var(--dim)';
+    p.textContent = 'No MPC Autofill results for ' + entry.name + '.';
+    grid.append(p);
+    return;
+  }
+
+  /* A sentinel after the tiles; when it scrolls into view, load the next page. */
+  const sentinel = document.createElement('div');
+  sentinel.id = 'mpcSentinel';
+  sentinel.className = 'sentinel';
+  sentinel.textContent = 'Loading more\u2026';
+  grid.append(sentinel);
+
+  await mpcMore();
+
+  if('IntersectionObserver' in window){
+    mpcView.observer = new IntersectionObserver(entries => {
+      if(entries.some(e => e.isIntersecting)) mpcMore();
+    }, {root: grid.closest('.db'), rootMargin: '400px'});
+    const live = document.getElementById('mpcSentinel');
+    if(live) mpcView.observer.observe(live);
+  } else {
+    /* No observer: fall back to a button. */
+    const live = document.getElementById('mpcSentinel');
+    if(live){
+      live.textContent = '';
+      const btn = document.createElement('button');
+      btn.className = 'btn'; btn.textContent = 'Show more';
+      btn.onclick = () => mpcMore();
+      live.append(btn);
+    }
+  }
+}
+
+const printsDlg = document.getElementById('printsDlg');
+
+/* ---- Art drive picker ---------------------------------------------- */
+const sourcesDlg = document.getElementById('sourcesDlg');
+
+function renderSources(){
+  const box = document.getElementById('sourcesList');
+  const term = (document.getElementById('sourceFilter').value || '').toLowerCase().trim();
+  const off = new Set(geo.mpcSourcesOff || []);
+  box.innerHTML = '';
+  if(!sourceList || !sourceList.length){
+    box.innerHTML = '<p style="color:var(--dim)">No drive list \u2014 check the art proxy.</p>';
+    return;
+  }
+  const shown = sourceList.filter(src =>
+    !term || src.name.toLowerCase().includes(term) || src.description.toLowerCase().includes(term));
+
+  shown.forEach(src => {
+    const row = document.createElement('label');
+    row.style.cssText = 'display:flex;gap:.6rem;align-items:flex-start;padding:.4rem .2rem;' +
+                        'border-bottom:1px solid var(--line);cursor:pointer';
+    const why = sourceFiltered(src);
+    if(why) row.style.opacity = '.45';
+    const box2 = document.createElement('input');
+    box2.type = 'checkbox';
+    box2.checked = !off.has(src.pk) && !why;
+    box2.disabled = !!why;
+    box2.style.cssText = 'margin-top:.2rem;accent-color:var(--accent);flex:none';
+    box2.onchange = () => {
+      const set = new Set(geo.mpcSourcesOff || []);
+      if(box2.checked) set.delete(src.pk); else set.add(src.pk);
+      geo.mpcSourcesOff = [...set];
+      updateSourcesNote();
+      queueSave();
+    };
+    const text = document.createElement('div');
+    text.style.minWidth = '0';
+    text.innerHTML = '<div style="font-size:.88rem">' + src.name +
+      (why ? ' <span style="font-size:.68rem;color:var(--warn);border:1px solid var(--warn);' +
+             'border-radius:3px;padding:0 .25rem">' + why + '</span>' : '') + '</div>' +
+      (src.description
+        ? '<div style="font-size:.74rem;color:var(--dim);line-height:1.35">' +
+          src.description.slice(0, 160) + '</div>'
+        : '');
+    row.append(box2, text);
+    box.append(row);
+  });
+  if(!shown.length) box.innerHTML = '<p style="color:var(--dim)">Nothing matches that filter.</p>';
+}
+
+function updateSourcesNote(){
+  const list = sourceList || [];
+  const total = list.length;
+  const off = new Set(geo.mpcSourcesOff || []);
+  const on = list.filter(s => !off.has(s.pk) && !sourceFiltered(s)).length;
+  const byFilter = list.filter(s => sourceFiltered(s)).length;
+  document.getElementById('sourcesNote').textContent = total
+    ? on + ' of ' + total + ' drives enabled' +
+      (byFilter ? ' \u00b7 ' + byFilter + ' hidden by a filter' : '')
+    : '';
+}
+
+document.getElementById('btnSources').onclick = async () => {
+  sourcesDlg.showModal();
+  document.getElementById('sourcesList').innerHTML =
+    '<p style="color:var(--dim)">Loading drive list\u2026</p>';
+  await loadSources();
+  document.getElementById('hideAi').checked = !!geo.mpcHideAi;
+  document.getElementById('hideForeign').checked = !!geo.mpcHideForeign;
+  renderSources();
+  updateSourcesNote();
+};
+document.getElementById('sourceFilter').oninput = renderSources;
+['hideAi','hideForeign'].forEach(id => {
+  document.getElementById(id).onchange = e => {
+    geo[id === 'hideAi' ? 'mpcHideAi' : 'mpcHideForeign'] = e.target.checked;
+    renderSources(); updateSourcesNote(); queueSave();
+  };
+});
+document.getElementById('sourcesAll').onclick = () => {
+  geo.mpcSourcesOff = []; renderSources(); updateSourcesNote(); queueSave();
+};
+document.getElementById('sourcesNone').onclick = () => {
+  geo.mpcSourcesOff = (sourceList || []).map(s => s.pk);
+  renderSources(); updateSourcesNote(); queueSave();
+};
+document.getElementById('mpcFuzzy').onchange = e => {
+  geo.mpcFuzzy = e.target.checked; queueSave();
+  setStatus(geo.mpcFuzzy
+    ? 'MPC searches now match names loosely, which finds more but can stray off-card.'
+    : 'MPC searches now match card names exactly.');
+};
+document.getElementById('scryExtras').onchange = e => {
+  geo.scryExtras = e.target.checked; queueSave();
+  setStatus(geo.scryExtras
+    ? 'Scryfall now includes promos and art-series printings.'
+    : 'Scryfall now shows standard printings only.');
+};
+document.getElementById('mpcMinDpi').onchange = e => {
+  geo.mpcMinDpi = parseInt(e.target.value, 10) || 0;
+  queueSave();
+  setStatus(geo.mpcMinDpi
+    ? 'MPC searches now ignore art below ' + geo.mpcMinDpi + ' dpi.'
+    : 'MPC searches now include art at any resolution.');
+};
+
+/* ---- MPC-first ------------------------------------------------------
+   When a card is added we look it up on MPC Autofill and take the top hit.
+   Only the print image is repointed — the preview thumbnail stays on
+   Scryfall's small file, so adding a hundred cards doesn't pull a hundred
+   multi-megabyte images. The full file is fetched once, at export. */
+const mpcQueue = [];
+let mpcWorking = false;
+
+function queueMpc(entry){
+  if(!geo.mpcFirst || !proxyBase() || entry.custom) return;
+  mpcQueue.push(entry);
+  scheduleDrain();
+}
+
+/* Wait a moment so a pasted decklist arrives as one batch rather than as a
+   hundred separate lookups. */
+let mpcTimer = null;
+function scheduleDrain(){
+  clearTimeout(mpcTimer);
+  mpcTimer = setTimeout(() => { if(!mpcWorking) drainMpc(); }, 250);
+}
+
+async function drainMpc(){
+  mpcWorking = true;
+  try{
+    while(mpcQueue.length){
+      /* Take everything waiting and look it all up together. */
+      const batch = mpcQueue.splice(0, mpcQueue.length)
+        .filter(e => !e.custom && deck.has(e.key));
+      if(!batch.length) continue;
+
+      const names = [...new Set(batch.map(e => e.name))];
+      setStatus('Finding MPC art for ' + names.length +
+                (names.length === 1 ? ' card' : ' cards') + '\u2026','busy');
+
+      let byName;
+      try{
+        byName = await mpcSearchMany(names);
+      }catch(err){
+        console.warn('MPC batch search failed', err);
+        setStatus('MPC Autofill search failed \u2014 ' + err.message, 'err');
+        continue;
+      }
+
+      /* One metadata call covers every top hit in the batch. */
+      const topIds = [];
+      for(const name of names){
+        const ids = byName.get(name.toLowerCase());
+        if(ids && ids.length) topIds.push(ids[0]);
+      }
+      let meta = new Map();
+      if(topIds.length){
+        try{ meta = await mpcCards(topIds); }
+        catch(err){ console.warn('MPC metadata failed', err); }
+      }
+
+      let applied = 0;
+      for(const entry of batch){
+        if(entry.custom || !deck.has(entry.key)) continue;
+        const ids = byName.get(entry.name.toLowerCase());
+        if(!ids || !ids.length) continue;
+        const id = ids[0];
+        const card = meta.get(id) || {};
+        const src = card.source_name || card.source;
+        entry.custom = true;
+        entry.viaMpc = true;
+        entry.mpcId = id;
+        entry.img = driveUrl(id);
+        entry.thumb = thumbUrl(id, 400);
+        entry.customW = 0; entry.customH = 0;        // measured at export
+        entry.set = 'MPC' + (src ? ' \u00b7 ' + src : '') +
+                    (card.dpi ? ' \u00b7 ' + card.dpi + ' dpi' : '');
+        applied++;
+      }
+      renderDeck();
+      const missed = names.length - [...byName.values()].filter(v => v.length).length;
+      setStatus('MPC art applied to ' + applied + ' card' + (applied===1?'':'s') +
+                (missed > 0 ? ', ' + missed + ' not found on MPC' : '') +
+                '. Click any card to change it.');
+    }
+  } finally {
+    mpcWorking = false;
+  }
+}
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = ev => ev.target.closest('dialog').close());
+
+/* Clicking the backdrop closes a dialog. A click on the backdrop reports the
+   dialog itself as the target, so compare against its box to be sure it was
+   outside the panel rather than on a child element. */
+document.getElementById('printsDlg').addEventListener('close', () => {
+  if(mpcView.observer) mpcView.observer.disconnect();
+});
+
+document.querySelectorAll('dialog').forEach(dlg => {
+  dlg.addEventListener('click', ev => {
+    if(ev.target !== dlg) return;
+    const r = dlg.getBoundingClientRect();
+    const outside = ev.clientX < r.left || ev.clientX > r.right ||
+                    ev.clientY < r.top  || ev.clientY > r.bottom;
+    if(outside) dlg.close();
+  });
+});
+let printsEntry = null, printsTab = 'scryfall', printsCopyIndex = null;
+
+/* Set when the page was opened from an edit link, or straight after submitting.
+   While set, sending again updates that order rather than creating a new one. */
+let currentOrder = null;        // {id, key}
+
+document.getElementById('applyAll').onchange = ev => {
+  document.getElementById('applyAllLabel').classList.toggle('on', ev.target.checked);
+};
+
+document.getElementById('printsTabs').onclick = ev => {
+  const b = ev.target.closest('button'); if(!b || !printsEntry) return;
+  printsTab = b.dataset.tab;
+  [...ev.currentTarget.children].forEach(x => x.classList.toggle('on', x===b));
+  if(printsTab === 'mpc') showMpc(printsEntry);
+  else showScryfall(printsEntry);
+};
+
+async function openPrints(entry, copyIndex){
+  printsEntry = entry;
+  /* Opened from the deck list, the intent is the whole stack; opened from a
+     card in the sheet, it is that one copy. */
+  const fromStack = (copyIndex === 'stack');
+  printsCopyIndex = fromStack ? null : (copyIndex == null ? null : copyIndex);
+  /* Open on whichever source is the current default, so long as it is reachable. */
+  printsTab = (geo.mpcFirst && proxyBase()) ? 'mpc' : 'scryfall';
+
+  const total = entriesNamed(entry.name, entry.faceIndex).reduce((n,e)=>n+e.qty,0);
+  const label = document.getElementById('applyAllLabel');
+  const box = document.getElementById('applyAll');
+  if(label && box){
+    label.style.display = total > 1 ? '' : 'none';
+    box.checked = fromStack && total > 1;
+    label.classList.toggle('on', box.checked);
+    label.querySelector('span').textContent = 'Apply to all ' + total + ' copies';
+  }
+  document.getElementById('printsTitle').textContent =
+    entry.label + (entry.faceIndex > 0 ? ' \u2014 back face' : '');
+  document.getElementById('printsNote').textContent =
+    'Printing at ' + cardW().toFixed(1) + ' \u00d7 ' + cardH().toFixed(1) + ' mm';
+  [...document.getElementById('printsTabs').children]
+    .forEach(b => b.classList.toggle('on', b.dataset.tab === printsTab));
+  document.getElementById('printsTabs').style.display = proxyBase() ? '' : 'none';
+  printsDlg.showModal();
+  if(printsTab === 'mpc') showMpc(entry);
+  else showScryfall(entry);
+}
+
+/* Every art change goes through here. Unchecked, it peels one copy off the
+   stack so that copy alone changes; checked, it applies to every copy of the
+   card and folds the stacks back into one. */
+function applyArt(entry, art, describe){
+  const all = !!(document.getElementById('applyAll') || {}).checked;
+  let targets;
+  if(all){
+    targets = entriesNamed(entry.name, entry.faceIndex);
+    if(!targets.length) targets = [entry];
+  } else {
+    targets = [splitAt(entry, printsCopyIndex == null ? entry.qty - 1 : printsCopyIndex)];
+  }
+  targets.forEach(t => Object.assign(t, art));
+  if(all && targets.length > 1){
+    const keep = targets[0];
+    keep.qty = targets.reduce((n,t) => n + t.qty, 0);
+    targets.slice(1).forEach(t => deck.delete(t.key));
+  }
+  renderDeck();
+  const n = targets[0].qty;
+  setStatus(describe + ' \u2014 ' + (all ? 'all ' + n + ' cop' + (n===1?'y':'ies') : 'one copy') + '.');
+  return targets[0];
+}
+
+async function showScryfall(entry){
+  const grid = document.getElementById('printsGrid');
+  grid.innerHTML = '<p style="color:var(--dim)">Loading\u2026</p>';
+  try{
+    /* Scryfall leaves "extras" — art series, promos and other variant printings —
+       out of search results unless they are asked for explicitly. */
+    const q = '!"' + entry.name + '"' + (geo.scryExtras ? ' include:extras' : '');
+    const d = await api('/cards/search?q='+encodeURIComponent(q)+'&unique=prints&order=released');
+    grid.innerHTML='';
+    grid.append(uploadTile(entry));
+    if(proxyBase()) grid.append(urlTile(entry));
+    d.data.forEach(card => {
+      if(faceCount(card) <= entry.faceIndex) return;   // printing lacks this face
+      const b=document.createElement('button'); b.type='button';
+      if(card.id===entry.card.id) b.className='cur';
+      const im=document.createElement('img');
+      im.loading = 'lazy'; im.decoding = 'async';
+      im.width = 250; im.height = 349;
+      im.src=thumbOf(card, entry.faceIndex); im.alt=card.set_name;
+      const lb=document.createElement('div'); lb.className='lb';
+      lb.textContent=card.set_name;
+      const sub=document.createElement('div'); sub.className='sub';
+      const spec = imageSpec(card, entry.faceIndex);
+      const dpi = dpiOf(spec);
+      const dp = document.createElement('span');
+      dp.className = 'dpi ' + (dpi >= 280 ? 'hi' : dpi >= 200 ? 'mid' : 'low');
+      dp.textContent = dpi + ' dpi';
+      dp.title = spec ? spec.w + ' \u00d7 ' + spec.h + ' px printed at ' +
+                        cardW().toFixed(1) + ' \u00d7 ' + cardH().toFixed(1) + ' mm' : '';
+      sub.append(document.createTextNode((card.released_at||'').slice(0,4) + ' \u00b7 '), dp);
+      b.append(im,lb,sub);
+      b.onclick=()=>{
+        applyArt(entry, {
+          card, custom:false, viaMpc:false, mpcId:null,
+          customW:undefined, customH:undefined,
+          img: printImage(card,entry.faceIndex) || printImage(card,0),
+          thumb: thumbOf(card,entry.faceIndex),
+          set: card.set_name + ' #' + card.collector_number
+        }, 'Using the ' + card.set_name + ' printing of ' + entry.label);
+        printsDlg.close();
+      };
+      grid.append(b);
+    });
+    const shown = [...grid.children].filter(c => c.tagName === 'BUTTON' &&
+                                              !c.classList.contains('upload')).length;
+    document.getElementById('printsNote').textContent =
+      'Printing at ' + cardW().toFixed(1) + ' \u00d7 ' + cardH().toFixed(1) + ' mm \u00b7 ' +
+      shown + ' Scryfall printing' + (shown === 1 ? '' : 's');
+    if(!grid.children.length) grid.innerHTML='<p style="color:var(--dim)">No printings with images.</p>';
+  }catch(err){ grid.innerHTML='<p style="color:var(--warn)">Could not load printings.</p>'; }
+}
+
+/* ============================================================
+   Import
+   ============================================================ */
+document.getElementById('importGo').onclick = async () => {
+  const lines = document.getElementById('importText').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const wanted=[];
+  lines.forEach(line => {
+    if(/^(deck|sideboard|commander|maybeboard|about)\b/i.test(line)) return;
+    const m = line.match(/^(?:(\d+)\s*[xX]?\s+)?(.+?)(?:\s*\([A-Za-z0-9]{2,5}\).*)?(?:\s+\d+)?$/);
+    if(!m) return;
+    const name = m[2].replace(/\s*\[[^\]]*\]\s*/g,'').trim();
+    if(name) wanted.push({qty:parseInt(m[1]||'1',10), name});
+  });
+  if(!wanted.length){ setStatus('Nothing readable in that list.','err'); return; }
+
+  const notFound=[], failed=[]; let added=0;
+  const qtyFor = nm => {
+    const h = wanted.find(w=>w.name.toLowerCase()===nm.toLowerCase())
+           || wanted.find(w=>nm.toLowerCase().startsWith(w.name.toLowerCase()));
+    return h ? h.qty : 1;
+  };
+  let remaining = wanted.slice();
+
+  if(batchAvailable){
+    const left=[];
+    for(let i=0;i<wanted.length && batchAvailable;i+=75){
+      const batch = wanted.slice(i,i+75);
+      setStatus('Looking up '+Math.min(i+batch.length,wanted.length)+' of '+wanted.length+'\u2026','busy');
+      try{
+        const res = await apiCollection(batch.map(w=>({name:w.name})));
+        res.data.forEach(c => { addCard(c,{quantity:qtyFor(c.name),silent:true}); added++; });
+        (res.not_found||[]).forEach(nf => {
+          const w = batch.find(b=>b.name.toLowerCase()===(nf.name||'').toLowerCase());
+          left.push(w || {name:nf.name, qty:1});
+        });
+      }catch(e){
+        if(e.noBatch) break;
+        if(e.throttled){ setStatus('Scryfall is busy. Added '+added+' so far.','err'); return; }
+        break;
+      }
+    }
+    if(batchAvailable) remaining = left;
+  }
+
+  for(const w of remaining){
+    setStatus('Looking up '+w.name+'\u2026 ('+added+' added)','busy');
+    const onRetry = seen => setStatus(seen?'Rate-limited \u2014 slowing down. '+added+' added.':'Retrying\u2026','busy');
+    let card=null;
+    try{ card = await api('/cards/named?exact='+encodeURIComponent(w.name),{onRetry}); }
+    catch(e){
+      if(e.blocked){ setStatus(BLOCKED_MSG,'err'); return; }
+      if(e.throttled){ setStatus(e.message+' Added '+added+'.','err'); return; }
+      try{ card = await api('/cards/named?fuzzy='+encodeURIComponent(w.name),{onRetry}); }
+      catch(e2){
+        if(e2.blocked){ setStatus(BLOCKED_MSG,'err'); return; }
+        if(e2.throttled){ setStatus(e2.message+' Added '+added+'.','err'); return; }
+        if(e2.notFound) notFound.push(w.name); else failed.push(w.name);
+      }
+    }
+    if(card){ addCard(card,{quantity:w.qty,silent:true}); added++; }
+  }
+  const bad = notFound.concat(failed);
+  setStatus(bad.length ? 'Added '+added+' of '+wanted.length+'. Trouble with: '+bad.join(', ')
+                       : 'Added all '+wanted.length+' cards.', bad.length?'err':'');
+};
+
+/* ============================================================
+   Session persistence
+
+   The deck and sheet settings are kept in the browser so a refresh, a crashed
+   tab or a phone switching apps does not lose the work. Only small things are
+   stored: card stubs and image urls, never the image data itself.
+   ============================================================ */
+const STORE_KEY = 'proxybuilder.session.v2';
+
+/* A trimmed card object — enough to redraw, re-pick printings and export. */
+function cardStub(card){
+  if(!card) return null;
+  const pick = u => u ? {large:u.large, normal:u.normal, png:u.png, small:u.small} : undefined;
+  return {
+    id: card.id,
+    oracle_id: card.oracle_id,
+    name: card.name,
+    set_name: card.set_name,
+    collector_number: card.collector_number,
+    image_uris: pick(card.image_uris),
+    card_faces: card.card_faces
+      ? card.card_faces.map(f => ({name:f.name, image_uris:pick(f.image_uris)}))
+      : undefined
+  };
+}
+
+function saveSession(){
+  try{
+    const entries = [];
+    for(const e of deck.values()){
+      const isData = typeof e.img === 'string' && e.img.startsWith('data:');
+      entries.push({
+        key: e.key, qty: e.qty, name: e.name, label: e.label,
+        faceIndex: e.faceIndex, card: cardStub(e.card),
+        set: isData ? 'uploaded art — add it again' : e.set,
+        custom: isData ? false : !!e.custom,
+        viaMpc: !!e.viaMpc, mpcId: e.mpcId || null,
+        customW: e.customW || 0, customH: e.customH || 0,
+        /* Uploaded images can be megabytes, so they are not kept. */
+        img: isData ? null : e.img,
+        thumb: isData ? null : e.thumb,
+        lostUpload: isData
+      });
+    }
+    const payload = {
+      v: 2,
+      saved: Date.now(),
+      preset: (document.getElementById('presetSel') || {}).value || 'custom',
+      geo: {...geo, proxyToken: ''},        // the token comes from config, not here
+      deck: entries
+    };
+    localStorage.setItem(STORE_KEY, JSON.stringify(payload));
+  }catch(err){
+    /* Quota or private browsing: not worth interrupting anyone over. */
+    console.warn('could not save session', err);
+  }
+}
+
+let saveTimer = null;
+function queueSave(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveSession, 400);
+}
+
+function restoreSession(){
+  let payload;
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(!raw) return false;
+    payload = JSON.parse(raw);
+  }catch(err){ return false; }
+  if(!payload || !Array.isArray(payload.deck) || !payload.deck.length) return false;
+
+  try{
+    if(payload.geo){
+      const token = geo.proxyToken, url = geo.proxyUrl;
+      Object.assign(geo, payload.geo);
+      geo.proxyToken = token; geo.proxyUrl = url;    // keep what config supplied
+    }
+    deck.clear();
+    let lost = 0;
+    payload.deck.forEach(e => {
+      if(e.lostUpload) lost++;
+      const card = e.card || {};
+      deck.set(e.key, {
+        key: e.key, qty: e.qty || 1, name: e.name, label: e.label || e.name,
+        faceIndex: e.faceIndex || 0, card,
+        img: e.img || printImage(card, e.faceIndex || 0),
+        thumb: e.thumb || thumbOf(card, e.faceIndex || 0),
+        set: e.set || '', custom: !!e.custom, viaMpc: !!e.viaMpc,
+        mpcId: e.mpcId || null, customW: e.customW || 0, customH: e.customH || 0
+      });
+    });
+    const sel = document.getElementById('presetSel');
+    if(sel && payload.preset) sel.value = payload.preset;
+    refresh();
+    renderDeck();
+    const when = new Date(payload.saved || Date.now());
+    setStatus('Picked up where you left off \u2014 ' + totalCards() + ' cards from ' +
+              when.toLocaleString() + '.' +
+              (lost ? ' ' + lost + ' card(s) used uploaded art, which needs adding again.' : ''),
+              lost ? 'err' : '');
+    return true;
+  }catch(err){
+    console.warn('could not restore session', err);
+    return false;
+  }
+}
+
+function clearSession(){
+  try{ localStorage.removeItem(STORE_KEY); }catch(err){}
+}
+
+/* ============================================================
+   Orders — send the deck, not the file
+   ============================================================ */
+function orderPayload(){
+  const cards = [];
+  for(const e of deck.values()){
+    cards.push({
+      name: e.name,
+      label: e.label,
+      qty: e.qty,
+      faceIndex: e.faceIndex,
+      scryfallId: e.card && e.card.id ? e.card.id : null,
+      set: e.set || null,
+      mpcId: e.mpcId || null,
+      uploaded: !!(e.custom && !e.mpcId)
+    });
+  }
+  return {
+    name: (document.getElementById('ordName').value || '').trim(),
+    finish: document.getElementById('ordFinish').value,
+    paper: document.getElementById('ordPaper').value,
+    box: document.getElementById('ordBox').checked,
+    notes: (document.getElementById('ordNotes').value || '').trim(),
+    totalCards: totalCards(),
+    sheets: Math.ceil(totalCards() / perPage()),
+    preset: document.getElementById('presetSel').value,
+    settings: {
+      pageW: geo.pageW, pageH: geo.pageH, cols: geo.cols, rows: geo.rows,
+      trimW: geo.trimW, trimH: geo.trimH, bleed: geo.bleed,
+      colGap: geo.colGap, rowGap: geo.rowGap,
+      marks: geo.marks, guides: geo.guides, guideStyle: geo.guideStyle,
+      guideColor: geo.guideColor, contrast: geo.contrast
+    },
+    cards
+  };
+}
+
+function orderLinkFor(id, key){
+  return location.origin + location.pathname +
+         '?order=' + encodeURIComponent(id) + '&key=' + encodeURIComponent(key);
+}
+
+function showOrderLink(updated){
+  const link = orderLinkFor(currentOrder.id, currentOrder.key);
+  document.getElementById('ordDoneMsg').textContent = updated
+    ? 'Order updated. Your link is unchanged.'
+    : OPERATOR
+      ? 'Order sent. ' + OPERATOR + ' has your card list and art choices.'
+      : 'Order sent. Your card list and art choices are in.';
+  document.getElementById('ordLink').value = link;
+  /* Put the link in the address bar too, so a bookmark or a refresh keeps it. */
+  try{ history.replaceState(null, '', link); }catch(e){}
+  document.querySelector('#sendDlg .db').style.display = 'none';
+  document.getElementById('ordFoot').style.display = 'none';
+  document.getElementById('ordDone').style.display = '';
+  document.getElementById('ordDoneFoot').style.display = '';
+}
+
+document.getElementById('ordCopy').onclick = async () => {
+  const input = document.getElementById('ordLink');
+  try{
+    await navigator.clipboard.writeText(input.value);
+    document.getElementById('ordCopy').textContent = 'Copied';
+    setTimeout(() => { document.getElementById('ordCopy').textContent = 'Copy'; }, 1800);
+  }catch(e){
+    input.select();   // clipboard blocked; at least pre-select it
+  }
+};
+
+document.getElementById('btnSend').onclick = () => {
+  if(!deck.size){ setStatus('Add some cards first.','err'); return; }
+  const uploaded = [...deck.values()].filter(e => e.custom && !e.mpcId).length;
+  document.getElementById('ordSummary').textContent =
+    totalCards() + ' cards over ' + Math.ceil(totalCards()/perPage()) + ' sheet(s).' +
+    (uploaded ? ' Note: ' + uploaded + ' card(s) use art you uploaded — send '
+              + (OPERATOR || 'them') + ' those files separately.' : '');
+  /* Back to the form, in case the success view is still showing. */
+  document.querySelector('#sendDlg .db').style.display = '';
+  document.getElementById('ordFoot').style.display = '';
+  document.getElementById('ordDone').style.display = 'none';
+  document.getElementById('ordDoneFoot').style.display = 'none';
+  document.getElementById('ordSend').textContent = currentOrder ? 'Update my order' : 'Send it';
+  document.getElementById('sendDlg').showModal();
+};
+
+document.getElementById('ordSend').onclick = async () => {
+  const payload = orderPayload();
+  if(!payload.name){
+    setStatus(OPERATOR ? 'Add your name so ' + OPERATOR + ' knows whose deck it is.'
+                       : 'Add your name so they know whose deck it is.', 'err');
+    return;
+  }
+  if(!proxyBase()){ setStatus('No proxy configured, so the order cannot be sent.','err'); return; }
+  setStatus('Sending your order\u2026','busy');
+  try{
+    let url = proxyBase() + '/order';
+    if(currentOrder){
+      url += '?id=' + encodeURIComponent(currentOrder.id) +
+             '&key=' + encodeURIComponent(currentOrder.key);
+    }
+    const res = await proxyFetch(withToken(url), {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
+    });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok || !j.ok) throw new Error(j.error || ('the proxy returned ' + res.status));
+    const updated = !!currentOrder;
+    currentOrder = {id: j.id, key: j.key};
+    showOrderLink(updated);
+    setStatus(updated ? 'Order updated.' : 'Order sent.');
+  }catch(err){
+    setStatus('Could not send that order \u2014 ' + err.message, 'err');
+  }
+};
+
+/* ---- Operator side: list orders and load one back into the builder ---- */
+if(IS_LOCAL) document.getElementById('btnOrders').style.display = '';
+
+document.getElementById('btnOrders').onclick = () => document.getElementById('ordersDlg').showModal();
+
+document.getElementById('ordersLoad').onclick = async () => {
+  const admin = document.getElementById('adminToken').value.trim();
+  const box = document.getElementById('ordersList');
+  if(!admin){ box.textContent = 'Enter the admin token first.'; return; }
+  box.textContent = 'Loading\u2026';
+  try{
+    const res = await fetch(proxyBase() + '/orders?a=' + encodeURIComponent(admin));
+    const j = await res.json();
+    if(!res.ok) throw new Error(j.error || res.status);
+    box.innerHTML = '';
+    const all = j.orders || [];
+    if(!all.length){ box.textContent = 'No orders yet.'; return; }
+
+    const live = all.filter(o => (o.status || 'new') !== 'done');
+    const finished = all.filter(o => (o.status || 'new') === 'done');
+
+    if(live.length){
+      live.forEach(o => renderOrderRow(box, o, admin));
+    } else {
+      const p = document.createElement('p');
+      p.style.cssText = 'color:var(--dim);font-size:.88rem;margin:.4rem 0';
+      p.textContent = 'Nothing outstanding \u2014 every order is done.';
+      box.append(p);
+    }
+
+    /* Completed orders stay reachable, just out of the way. */
+    if(finished.length){
+      const fold = document.createElement('details');
+      fold.className = 'donefold';
+      const sum = document.createElement('summary');
+      sum.textContent = 'Completed (' + finished.length + ')';
+      fold.append(sum);
+      const inner = document.createElement('div');
+      fold.append(inner);
+      finished.forEach(o => renderOrderRow(inner, o, admin));
+      box.append(fold);
+    }
+  }catch(err){
+    box.textContent = 'Could not load orders: ' + err.message;
+  }
+};
+
+const STATUS_LABEL = {new:'New', in_progress:'In progress', done:'Done'};
+const STATUS_COLOUR = {new:'var(--accent)', in_progress:'#D9A441', done:'var(--good)'};
+
+function renderOrderRow(box, o, admin){
+  const status = o.status || 'new';
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:.6rem;align-items:center;padding:.45rem 0;' +
+                      'border-bottom:1px solid var(--line)';
+  if(status === 'done') row.style.opacity = '.55';
+
+  const pip = document.createElement('span');
+  pip.textContent = STATUS_LABEL[status] || status;
+  pip.style.cssText = 'flex:none;font-size:.7rem;padding:.1rem .4rem;border-radius:3px;' +
+                      'border:1px solid ' + (STATUS_COLOUR[status] || 'var(--line)') +
+                      ';color:' + (STATUS_COLOUR[status] || 'var(--dim)');
+
+  const txt = document.createElement('div');
+  txt.style.flex = '1';
+  txt.innerHTML = '<div>' + (o.name || 'unnamed') + ' \u2014 ' + (o.totalCards || '?') + ' cards' +
+                  (o.finish ? ' \u00b7 ' + o.finish : '') +
+                  (o.paper ? ' \u00b7 ' + o.paper + ' core' : '') + '</div>' +
+                  '<div style="font-size:.74rem;color:var(--dim)">' + (o.received || '') +
+                  ' \u00b7 ' + o.id + (o.adminNote ? ' \u00b7 ' + o.adminNote : '') + '</div>';
+
+  const open = document.createElement('button');
+  open.className = 'btn sm'; open.textContent = 'Open';
+  open.onclick = () => loadOrder(o.id, admin);
+
+  const next = status === 'done' ? 'new' : (status === 'new' ? 'in_progress' : 'done');
+  const mark = document.createElement('button');
+  mark.className = 'btn sm';
+  mark.textContent = status === 'done' ? 'Reopen' : (status === 'new' ? 'Start' : 'Mark done');
+  mark.onclick = async () => {
+    mark.disabled = true;
+    try{
+      await setOrderStatus(o.id, next, admin);
+      document.getElementById('ordersLoad').click();
+    }catch(err){
+      setStatus('Could not update that order \u2014 ' + err.message, 'err');
+      mark.disabled = false;
+    }
+  };
+
+  row.append(pip, txt, open, mark);
+  box.append(row);
+}
+
+async function setOrderStatus(id, status, admin){
+  const res = await fetch(proxyBase() + '/order/status?a=' + encodeURIComponent(admin), {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({id, status})
+  });
+  const j = await res.json().catch(()=>({}));
+  if(!res.ok || !j.ok) throw new Error(j.error || ('the proxy returned ' + res.status));
+  setStatus('Order ' + id + ' marked ' + (STATUS_LABEL[status] || status).toLowerCase() + '.');
+  return j;
+}
+
+async function loadOrder(id, admin){
+  setStatus('Loading order ' + id + '\u2026','busy');
+  try{
+    const res = await fetch(proxyBase() + '/orders?a=' + encodeURIComponent(admin) +
+                            '&id=' + encodeURIComponent(id));
+    const order = await res.json();
+    if(!res.ok) throw new Error(order.error || res.status);
+    document.getElementById('ordersDlg').close();
+    await applyOrder(order);
+  }catch(err){
+    setStatus('Could not load that order \u2014 ' + err.message, 'err');
+  }
+}
+
+/* Rebuild the builder from a submitted order — the card list, each card's
+   chosen art, and the sheet settings it was built with. */
+async function applyOrder(order){
+  try{
+    /* Apply their sheet settings, then rebuild the deck card by card. */
+    if(order.settings) Object.assign(geo, order.settings);
+    document.getElementById('presetSel').value = order.preset || 'custom';
+    deck.clear();
+    const wasMpcFirst = geo.mpcFirst;
+    geo.mpcFirst = false;                 // the order already names the art
+
+    const report = [];
+    let applied = 0, missed = 0;
+
+    for(const line of (order.cards || [])){
+      let card = null, how = 'id';
+      if(line.scryfallId){
+        try{ card = await api('/cards/' + encodeURIComponent(line.scryfallId)); }catch(e){}
+      }
+      if(!card){
+        how = 'fuzzy';
+        try{ card = await api('/cards/named?fuzzy=' + encodeURIComponent(line.name)); }catch(e){}
+      }
+      if(!card){
+        missed++;
+        report.push({card:line.name, found:'NO', art:'-'});
+        continue;
+      }
+
+      const k = keyFor(card, line.faceIndex || 0);
+      /* A two-faced card creates both faces on the first line, so only add
+         when this particular face isn't present yet. */
+      if(!deck.has(k)) addCard(card, {quantity: line.qty || 1, silent: true});
+      const entry = deck.get(k);
+      if(!entry){
+        missed++;
+        report.push({card:line.name, found:how, art:'no entry for face ' + (line.faceIndex||0)});
+        continue;
+      }
+      entry.qty = line.qty || 1;        // the order is authoritative on counts
+
+      if(line.mpcId){
+        entry.custom = true; entry.viaMpc = true; entry.mpcId = line.mpcId;
+        entry.img = driveUrl(line.mpcId);
+        entry.thumb = thumbUrl(line.mpcId, 400);   // the art they chose, small
+        entry.customW = 0; entry.customH = 0;
+        entry.set = line.set || 'MPC \u00b7 from order';
+        applied++;
+        report.push({card:line.name, found:how, art:'MPC ' + line.mpcId.slice(0,10) + '\u2026'});
+      } else {
+        report.push({card:line.name, found:how, art: line.uploaded ? 'was an upload' : 'Scryfall'});
+      }
+    }
+    console.table(report);
+    geo.mpcFirst = wasMpcFirst;
+    refresh(); renderDeck();
+    const who = order.name || 'someone';
+    const uploads = (order.cards || []).filter(c => c.uploaded && !c.mpcId).length;
+    setStatus('Loaded ' + who + "'s order \u2014 " + totalCards() + ' cards, ' +
+              applied + ' MPC arts applied' +
+              (missed ? ', ' + missed + ' line(s) failed' : '') +
+              (uploads ? ', ' + uploads + ' used uploaded art you will need separately' : '') +
+              '. ' + (order.notes ? 'Notes: ' + order.notes : 'No notes.'),
+              (missed || uploads) ? 'err' : '');
+  }catch(err){
+    setStatus('Could not load that order \u2014 ' + err.message, 'err');
+  }
+}
+
+/* ============================================================
+   PDF
+   ============================================================ */
+function loadImage(src){
+  return new Promise((res,rej)=>{
+    const im=new Image(); im.crossOrigin='anonymous';
+    im.onload=()=>res(im); im.onerror=()=>rej(new Error('image'));
+    im.src=src;
+  });
+}
+function toJpeg(im, crop){
+  const cx = crop ? crop.x : 0, cy = crop ? crop.y : 0;
+  const sx = im.naturalWidth * cx, sy = im.naturalHeight * cy;
+  const sw = im.naturalWidth * (1 - 2*cx), sh = im.naturalHeight * (1 - 2*cy);
+  const c=document.createElement('canvas');
+  c.width=Math.max(1, Math.round(sw)); c.height=Math.max(1, Math.round(sh));
+  const ctx=c.getContext('2d');
+  /* Scryfall's PNG images have rounded transparent corners; the JPEGs are square
+     with the border filled. Painting the backdrop in the card-border colour makes
+     a PNG fallback match its JPEG siblings instead of showing white notches. */
+  ctx.fillStyle = geo.cornerFill;
+  ctx.fillRect(0,0,c.width,c.height);
+  if(geo.contrast!==100 && 'filter' in ctx) ctx.filter='contrast('+geo.contrast+'%)';
+  ctx.drawImage(im, sx, sy, sw, sh, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg',0.94);
+}
+
+document.getElementById('btnPdf').onclick = async () => {
+  if(!deck.size){ setStatus('Add some cards first.','err'); return; }
+  if(!updateNote()){ setStatus('Cards run off the page \u2014 fix the layout before exporting.','err'); return; }
+  if(!window.jspdf){ setStatus('The PDF library did not load. Check your connection and reload.','err'); return; }
+
+  const slots = slotList().map(x => x.entry), pages = Math.ceil(slots.length/perPage());
+  const {jsPDF} = window.jspdf;
+  const orient = geo.pageW > geo.pageH ? 'landscape' : 'portrait';
+  const doc = new jsPDF({unit:'mm', format:[geo.pageW,geo.pageH], orientation:orient});
+  const ox=originX(), oy=originY(), cache=new Map();
+
+  try{
+    for(let p=0;p<pages;p++){
+      if(p) doc.addPage([geo.pageW,geo.pageH],orient);
+      if(geo.marks){
+        doc.setFillColor(0,0,0);
+        markRects().forEach(([x,y,w,h]) => doc.rect(x,y,w,h,'F'));
+      }
+      const segs = guideSegments();
+      if(segs.length){
+        doc.setLineWidth(geo.guideWidth);
+        if(geo.guideDash) doc.setLineDashPattern([1,1],0);
+        let current = null;
+        segs.forEach(([x1,y1,x2,y2,kind]) => {
+          const colour = kind === 'corner' ? geo.guideCornerColor : geo.guideColor;
+          if(colour !== current){
+            const hex = colour.replace('#','');
+            doc.setDrawColor(parseInt(hex.slice(0,2),16),
+                             parseInt(hex.slice(2,4),16),
+                             parseInt(hex.slice(4,6),16));
+            current = colour;
+          }
+          doc.line(x1,y1,x2,y2);
+        });
+        if(geo.guideDash) doc.setLineDashPattern([],0);
+      }
+      for(let n=0;n<perPage();n++){
+        const e = slots[p*perPage()+n]; if(!e) break;
+        setStatus('Rendering sheet '+(p+1)+' of '+pages+', card '+(n+1)+'\u2026','busy');
+        const crop = needsMpcCrop(e) ? mpcCrop() : null;
+        const ckey = e.img + (crop ? '|c' + crop.x.toFixed(4) + ',' + crop.y.toFixed(4) : '');
+        let data = cache.get(ckey);
+        if(!data){ data = toJpeg(await loadImage(e.img), crop); cache.set(ckey, data); }
+        const col=n%geo.cols, row=Math.floor(n/geo.cols);
+        doc.addImage(data,'JPEG',
+          ox+col*(cardW()+geo.colGap), oy+row*(cardH()+geo.rowGap),
+          cardW(), cardH(), undefined, 'FAST');
+      }
+    }
+  }catch(err){
+    setStatus('Could not build the PDF \u2014 an image failed to load. Try again or reload.','err');
+    return;
+  }
+  doc.save('proxy-sheets-'+new Date().toISOString().slice(0,10)+'.pdf');
+  setStatus(pages+' sheet'+(pages>1?'s':'')+' saved. Print from Acrobat at 100% scale.');
+};
+
+/* ============================================================
+   Go
+   ============================================================ */
+function setStatus(msg,kind){
+  const el=document.getElementById('status');
+  el.textContent=msg; el.className=kind||'';
+}
+applyPreset('letter');
+document.getElementById('presetSel').value = 'letter';
+
+/* An edit link reopens a submitted order: ?order=<id>&key=<key> */
+async function openOrderFromUrl(){
+  const q = new URLSearchParams(location.search);
+  const id = q.get('order'), key = q.get('key');
+  if(!id || !key || !proxyBase()) return false;
+  setStatus('Opening your saved order\u2026','busy');
+  try{
+    const res = await proxyFetch(withToken(proxyBase() + '/order?id=' +
+      encodeURIComponent(id) + '&key=' + encodeURIComponent(key)));
+    const order = await res.json();
+    if(!res.ok) throw new Error(order.error || ('the proxy returned ' + res.status));
+    currentOrder = {id, key};
+    /* Put their details back in the form so an update keeps them. */
+    const set = (el, v) => { const n = document.getElementById(el); if(n && v != null) n.value = v; };
+    set('ordName', order.name); set('ordNotes', order.notes);
+    set('ordFinish', order.finish); set('ordPaper', order.paper);
+    const boxEl = document.getElementById('ordBox');
+    if(boxEl) boxEl.checked = !!order.box;
+    await applyOrder(order);
+    return true;
+  }catch(err){
+    setStatus('Could not open that order \u2014 ' + err.message +
+              '. The link may be wrong, or the order may have been removed.', 'err');
+    return false;
+  }
+}
+
+/* Pull in proxy-config.json, then refresh anything that depends on it. */
+/* Swap the impersonal copy for the operator's name once config has loaded.
+   Set via textContent and placeholder, never innerHTML — the name comes from a
+   config file, but there is no reason to let it inject markup. */
+function applyOperatorCopy(){
+  if(!OPERATOR) return;
+  const blurb = document.getElementById('sendBlurb');
+  if(blurb) blurb.textContent =
+    'This sends the card list and your art choices, not the printed file. '
+    + OPERATOR + ' prints it and gets back to you.';
+  const nameIn = document.getElementById('ordName');
+  if(nameIn) nameIn.placeholder = 'So ' + OPERATOR + ' knows whose deck it is';
+}
+
+loadProxyConfig().then(async found => {
+  applyOperatorCopy();
+  const fromLink = await openOrderFromUrl();
+  const resumed = fromLink || restoreSession();
+  if(found){
+    const pi = document.getElementById('proxyUrl');
+    const ti = document.getElementById('proxyToken');
+    if(pi) pi.value = geo.proxyUrl;
+    if(ti) ti.value = geo.proxyToken;
+    const note = document.getElementById('proxyNote');
+    if(note){
+      note.textContent = 'Proxy loaded from proxy-config.json.';
+      note.style.color = 'var(--good)';
+    }
+    if(!resumed) setStatus('Ready. MPC Autofill art is available.');
+  } else if(!resumed){
+    setStatus('Ready. No art proxy configured, so only Scryfall art is available.');
+  }
+});
+
+/* A phone switching apps may never fire a clean unload, so save on hide too. */
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'hidden') saveSession();
+});
+window.addEventListener('pagehide', saveSession);
+refreshInputs();
+renderDeck();
+setStatus('Ready. Card data and images come from Scryfall.');
+</script>
+</body>
+</html>
